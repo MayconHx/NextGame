@@ -1,0 +1,69 @@
+:root{
+  --bg:#0f1720;
+  --card:#111827;
+  --accent:#06b6d4;
+  --text:#e6eef6;
+}
+
+*{box-sizing:border-box}
+body{
+  font-family: Inter, Arial, sans-serif;
+  background: linear-gradient(180deg,var(--bg),#071023);
+  color:var(--text);
+  margin:0;
+  min-height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+}
+
+.container{
+  width:100%;
+  max-width:720px;
+  background:var(--card);
+  padding:28px;
+  border-radius:12px;
+  box-shadow:0 8px 30px rgba(2,6,23,0.6);
+}
+
+h1{text-align:center;margin-top:0}
+
+button{
+  padding:10px 16px;
+  border-radius:8px;
+  border:none;
+  background:var(--accent);
+  color:#042027;
+  cursor:pointer;
+  font-weight:600;
+  margin:8px;
+}
+
+button.secondary{
+  background:transparent;
+  color:var(--text);
+  border:1px solid rgba(255,255,255,0.06);
+}
+
+.modal{
+  position:fixed;inset:0;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(2,6,23,0.65);
+}
+
+.modal-content{
+  background:#0b1220;padding:24px;border-radius:10px;text-align:center;
+  width:90%;max-width:420px;
+}
+
+.question-card{
+  padding:20px;border-radius:10px;background:#071127;margin-top:12px;
+}
+
+.result-card{
+  padding:16px;border-radius:8px;background:linear-gradient(180deg,#052026,#0b1822);
+  display:flex;gap:12px;align-items:center;margin-top:14px;
+}
+
+.result-card img{width:120px;height:80px;object-fit:cover;border-radius:6px}

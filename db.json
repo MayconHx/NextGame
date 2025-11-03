@@ -1,0 +1,204 @@
+{
+  "games": [
+    {
+      "id": 1,
+      "name": "The Witcher 3",
+      "genre": "RPG",
+      "difficulty": "alta",
+      "mood": "imersivo",
+      "description": "RPG com narrativa profunda, mundo aberto e escolhas morais.",
+  "image": "/images/The Witcher 3.jpeg",
+      "keywords": ["história", "explorar", "imersivo", "historia"]
+    },
+    {
+      "id": 2,
+      "name": "Stardew Valley",
+      "genre": "Simulação",
+      "difficulty": "baixa",
+      "mood": "relaxante",
+      "description": "Simulador de fazenda calmo, ótimo para relaxar e jogar devagar.",
+  "image": "/images/Stardew Valley.jpeg",
+      "keywords": ["relax", "calmo", "simples", "tranquilo"]
+    },
+    {
+      "id": 3,
+      "name": "Dark Souls",
+      "genre": "Ação",
+      "difficulty": "muito alta",
+      "mood": "desafiador",
+      "description": "Jogo de ação desafiador com combate exigente e atmosferas sombrias.",
+  "image": "/images/Darksouls.png",
+      "keywords": ["desafio", "difícil", "dificil", "boss"]
+    },
+    {
+      "id": 4,
+      "name": "Minecraft",
+      "genre": "Criativo",
+      "difficulty": "média",
+      "mood": "livre",
+      "description": "Construção e exploração em um mundo aberto e sandbox.",
+  "image": "/images/Minecraft.png",
+      "keywords": ["construir", "criativo", "explorar", "sandbox"]
+    },
+    {
+      "id": 5,
+      "name": "Hollow Knight",
+      "genre": "Plataforma",
+      "difficulty": "alta",
+      "mood": "sombrio",
+      "description": "Exploração em plataforma com atmosfera sombria e combate técnico.",
+  "image": "/images/Hollow Knight.png",
+      "keywords": ["sombrio", "explorar", "plataforma", "metroidvania"]
+    },
+    {
+      "id": 6,
+      "name": "Celeste",
+      "genre": "Plataforma",
+      "difficulty": "alta",
+      "mood": "emocional",
+      "description": "Plataforma focada em precisão e uma história emocional sobre superação.",
+  "image": "/images/Celeste.jpeg",
+      "keywords": ["precisão", "desafio", "história", "platformer"]
+    },
+    {
+      "id": 7,
+      "name": "Overwatch 2",
+      "genre": "FPS",
+      "difficulty": "média",
+      "mood": "competitivo",
+      "description": "Jogo de tiro em equipe com heróis e papéis distintos.",
+  "image": "/images/Overwatch 2.jpeg",
+      "keywords": ["multiplayer", "competitivo", "equipe", "heróis"]
+    },
+    {
+      "id": 8,
+      "name": "Portal 2",
+      "genre": "Puzzle",
+      "difficulty": "média",
+      "mood": "inteligente",
+      "description": "Quebra-cabeças espaciais com humor e cooperação opcional.",
+  "image": "/images/Portal 2.jpeg",
+      "keywords": ["puzzle", "humor", "criativo", "coop"]
+    },
+    {
+      "id": 9,
+      "name": "Civilization VI",
+      "genre": "Estratégia",
+      "difficulty": "média",
+      "mood": "estratégico",
+      "description": "Jogo de estratégia por turnos focado em construir uma civilização ao longo dos séculos.",
+  "image": "/images/Civilization VI.jpeg",
+      "keywords": ["estratégia", "turnos", "construção", "complexo"]
+    },
+    {
+      "id": 10,
+      "name": "Hades",
+      "genre": "Roguelike",
+      "difficulty": "média",
+      "mood": "dinâmico",
+      "description": "Roguelike de ação com narrativa progressiva e combate fluido.",
+  "image": "/images/Hades.jpeg",
+      "keywords": ["roguelike", "repetível", "combate", "história"]
+    },
+    {
+      "id": 11,
+      "name": "The Sims 4",
+      "genre": "Simulação",
+      "difficulty": "baixa",
+      "mood": "criativo",
+      "description": "Simulador social para criar e controlar vidas virtuais.",
+  "image": "/images/The Sims 4.jpeg",
+      "keywords": ["criar", "social", "simulação", "customizar"]
+    },
+    {
+      "id": 12,
+      "name": "Among Us",
+      "genre": "Social",
+      "difficulty": "baixa",
+      "mood": "divertido",
+      "description": "Jogo social de dedução com grupo de jogadores e impostores.",
+  "image": "/images/Among Us.jpeg",
+      "keywords": ["social", "dedução", "multiplayer", "party"]
+    },
+    {
+      "id": 13,
+      "name": "Rocket League",
+      "genre": "Esportivo",
+      "difficulty": "média",
+      "mood": "rápido",
+      "description": "Futebol com carros — partidas rápidas e competitivas.",
+  "image": "/images/Rocket League.jpeg",
+      "keywords": ["competitivo", "rápido", "multiplayer", "esportivo"]
+    },
+    {
+      "id": 14,
+      "name": "Persona 5 Royal",
+      "genre": "RPG",
+      "difficulty": "média",
+      "mood": "estiloso",
+      "description": "JRPG com forte narrativa, personagens memoráveis e mecânicas de turno.",
+  "image": "/images/Persona 5 Royal.jpeg",
+      "keywords": ["história", "personagens", "turnos", "JRPG"]
+    },
+    {
+      "id": 15,
+      "name": "Doom Eternal",
+      "genre": "FPS",
+      "difficulty": "alta",
+      "mood": "adrenalina",
+      "description": "FPS frenético com combate rápido e movimento agressivo.",
+  "image": "/images/Doom Eternal.jpg",
+      "keywords": ["rápido", "ação", "adrenalina", "combate"]
+    },
+    {
+      "id": 16,
+      "name": "Animal Crossing: New Horizons",
+      "genre": "Simulação",
+      "difficulty": "baixa",
+      "mood": "relaxante",
+      "description": "Jogo calmo de socialização, criação e personalização em uma ilha.",
+  "image": "/images/Animal Crossing New Horizons.jpeg",
+      "keywords": ["relaxante", "social", "personalização", "calmo"]
+    },
+    {
+      "id": 17,
+      "name": "Sekiro: Shadows Die Twice",
+      "genre": "Ação",
+      "difficulty": "muito alta",
+      "mood": "desafiador",
+      "description": "Ação com enfoque em parry e precisão, combate punitivo e ritmo rápido.",
+  "image": "/images/Sekiro Shadows Die Twice.jpeg",
+      "keywords": ["parry", "difícil", "desafio", "ação"]
+    },
+    {
+      "id": 18,
+      "name": "Disco Elysium",
+      "genre": "RPG",
+      "difficulty": "média",
+      "mood": "intelectual",
+      "description": "RPG focado em narrativa e escolhas, com sistema profundo de habilidades.",
+  "image": "/images/Disco Elysium.jpeg",
+      "keywords": ["narrativa", "diálogos", "decisões", "investigação"]
+    },
+    {
+      "id": 19,
+      "name": "Baldur's Gate 3",
+      "genre": "RPG",
+      "difficulty": "média",
+      "mood": "épico",
+      "description": "RPG baseado em D&D com combate por turnos e escolhas de história.",
+  "image": "/images/Baldur's Gate 3.jpeg",
+      "keywords": ["D&D", "turnos", "história", "party"]
+    },
+    {
+      "id": 20,
+      "name": "Apex Legends",
+      "genre": "Battle Royale",
+      "difficulty": "média",
+      "mood": "competitivo",
+      "description": "Battle royale em equipe com heróis e habilidades únicas.",
+  "image": "/images/Apex Legends.jpeg",
+      "keywords": ["battle royale", "multiplayer", "competitivo", "equipe"]
+    }
+  ]
+}

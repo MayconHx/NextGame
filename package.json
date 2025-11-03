@@ -1,0 +1,14 @@
+{
+  "name": "next-game",
+  "version": "1.0.0",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "set PORT=3001 && node server.js",
+    "start:orig": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2"
+  }
+}
