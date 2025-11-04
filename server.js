@@ -8,10 +8,9 @@ app.use(cors());
 app.use(express.json());
 
 // Servir arquivos estáticos (index.html, style.css, script.js, imagens, etc.)
-// Usa a pasta atual do projeto como raiz estática para simplicidade.
 app.use(express.static(process.cwd()));
 
-// Perguntas dinâmicas com 4 opções elaboradas cada.
+// Perguntas dinâmicas 
 // Cada opção tem um id único e um objeto `filters` com atributos a serem usados na recomendação.
 const questions = [
   {
@@ -95,12 +94,12 @@ const questions = [
 const dbPath = path.join(process.cwd(), "db.json");
 let db = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
 
-// Endpoint para retornar todos os jogos (opcional)
+// Endpoint para retornar todos os jojos 
 app.get("/games", (req, res) => {
   res.json(db.games);
 });
 
-// Endpoint para retornar as perguntas (cada uma com 4 opções elaboradas)
+// Endpoint para retornar as perguntas 
 app.get("/questions", (req, res) => {
   res.json(questions);
 });
@@ -158,7 +157,6 @@ app.post("/recomendar", (req, res) => {
   const maxScore = Math.max(...Object.values(scores));
   let recommendation;
   if (!isFinite(maxScore) || maxScore === 0) {
-    // fallback aleatório
     recommendation = db.games[Math.floor(Math.random() * db.games.length)];
   } else {
     const bestIds = Object.entries(scores).filter(([_, v]) => v === maxScore).map(([k]) => Number(k));
@@ -175,4 +173,10 @@ app.get("/", (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`✅ Servidor rodando em http://localhost:${PORT}`));
+
+// Export app for testing. When running tests (NODE_ENV === 'test'), don't start the server.
+export default app;
+
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => console.log(`✅ Servidor rodando em http://localhost:${PORT}`));
+}
