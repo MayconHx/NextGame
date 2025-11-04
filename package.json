@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "set PORT=3001 && node server.js",
-    "start:orig": "node server.js"
+    "start:orig": "node server.js",
+    "test": "echo \"No tests specified\" && exit 0"
   },
   "dependencies": {
     "cors": "^2.8.5",
