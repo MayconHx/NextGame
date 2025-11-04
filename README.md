@@ -3,7 +3,7 @@
 ## O que tem aqui
 - backend/ (Node + Express)
 - frontend/ (HTML, CSS, JS)
-- db.json (banco local em JSON; fácil de migrar para Postgres + Docker depois)
+- db.json (banco local em JSON)
 
 ## Como rodar (local)
 1. Backend:
