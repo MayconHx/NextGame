@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+      - "3000:3000"
+    environment:
+      DB_HOST: db
+      DB_NAME: Banco_de_Dados
+      DB_PORT: 5432
+    depends_on:
+      - db
+
+  db:
+    image: postgres:15-alpine
+    container_name: postgres_db
+    environment:
+      POSTGRES_DB: meu_banco_docker
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
