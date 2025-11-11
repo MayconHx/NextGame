@@ -30,14 +30,16 @@ body{
 
 .layout{display:flex;gap:20px;align-items:flex-start;justify-content:space-between}
 .layout > #quiz{flex:1}
-.avatar-panel{width:260px;background:rgba(255,255,255,0.02);border-radius:10px;padding:12px;text-align:center}
-.avatar-panel h4{margin:6px 0 8px;font-size:1rem}
-.avatar{width:220px;height:260px;margin:0 auto;display:flex;align-items:center;justify-content:center}
-.avatar svg{width:100%;height:100%}
-.hint{font-size:0.85rem;color:rgba(230,238,246,0.7);margin-top:8px}
 
-.accessory-labels{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:8px}
-.accessory-label{background:rgba(255,255,255,0.03);padding:6px 8px;border-radius:999px;font-size:0.8rem}
+.steam-search{display:flex;flex-direction:column;gap:8px;align-items:stretch;margin:12px 0}
+.steam-search input{padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:var(--text)}
+.steam-search button{width:140px;margin-left:0}
+.steam-results{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+.steam-result{padding:8px;border-radius:8px;background:rgba(255,255,255,0.02);cursor:pointer;border:1px solid rgba(255,255,255,0.03)}
+.steam-result:hover{background:rgba(6,182,212,0.04)}
+.steam-details{margin-top:10px;padding:12px;border-radius:8px;background:linear-gradient(180deg,#021617,#061e24);text-align:left}
+.steam-details h4{margin:0 0 6px}
+.steam-details p{margin:6px 0;font-size:0.95rem}
 
 h1{
   text-align:center;

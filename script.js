@@ -12,6 +12,82 @@ startBtn.addEventListener("click", () => {
   initQuiz();
 });
 
+// --- Steam search UI binding ---
+document.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('steamSearchBtn');
+  const input = document.getElementById('steamQuery');
+  if (btn && input) {
+    btn.addEventListener('click', async () => {
+      const q = input.value.trim();
+      if (!q) return;
+      await performSteamSearch(q);
+    });
+    input.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') btn.click();
+    });
+  }
+});
+
+async function performSteamSearch(q){
+  const resultsEl = document.getElementById('steamResults');
+  const detailsEl = document.getElementById('steamDetails');
+  if(resultsEl) resultsEl.innerHTML = '<div class="question-card">Buscando...</div>';
+  if(detailsEl) detailsEl.innerHTML = '';
+  try{
+    const res = await fetch(`/steam/search?q=${encodeURIComponent(q)}&limit=20`);
+    if(!res.ok) throw new Error('Erro na busca');
+    const json = await res.json();
+    renderSteamResults(json.results || []);
+  }catch(err){
+    console.error('steam search error', err);
+    if(resultsEl) resultsEl.innerHTML = `<div class="question-card"><strong>Erro ao buscar na Steam:</strong> ${String(err)}</div>`;
+  }
+}
+
+function renderSteamResults(items){
+  const resultsEl = document.getElementById('steamResults');
+  if(!resultsEl) return;
+  if(!items || items.length===0){ resultsEl.innerHTML = '<div class="question-card">Nenhum resultado encontrado.</div>'; return; }
+  resultsEl.innerHTML = '';
+  for(const it of items){
+    const div = document.createElement('div');
+    div.className = 'steam-result';
+    div.textContent = `${it.name} (${it.appid})`;
+    div.addEventListener('click', () => showSteamDetails(it.appid));
+    resultsEl.appendChild(div);
+  }
+}
+
+async function showSteamDetails(appid){
+  const detailsEl = document.getElementById('steamDetails');
+  if(!detailsEl) return;
+  detailsEl.innerHTML = '<div class="question-card">Carregando detalhes...</div>';
+  try{
+    const res = await fetch(`/steam/app/${encodeURIComponent(appid)}`);
+    if(!res.ok) throw new Error('Erro ao obter detalhes');
+    const json = await res.json();
+    const body = json.details && json.details.data ? json.details.data : null;
+    if(!body || !json.details.success){
+      detailsEl.innerHTML = `<div class="question-card">Detalhes indisponíveis para appid ${appid}.</div>`;
+      return;
+    }
+    // Render some useful fields
+    const name = body.name || '—';
+    const desc = body.short_description || body.about_the_game || '';
+    const header = `<h4>${name} — ${appid}</h4>`;
+    const htmlDesc = `<p>${desc}</p>`;
+    const img = (body.header_image) ? `<img src="${body.header_image}" alt="${name}" style="max-width:220px;border-radius:8px;margin-bottom:8px"/>` : '';
+    const meta = [];
+    if(body.release_date && body.release_date.date) meta.push(`Lançamento: ${body.release_date.date}`);
+    if(body.developers) meta.push(`Dev: ${Array.isArray(body.developers)?body.developers.join(', '):body.developers}`);
+    if(body.publishers) meta.push(`Publisher: ${Array.isArray(body.publishers)?body.publishers.join(', '):body.publishers}`);
+    const metaHtml = `<p>${meta.join(' • ')}</p>`;
+    detailsEl.innerHTML = `${img}${header}${metaHtml}${htmlDesc}`;
+  }catch(err){
+    console.error('showSteamDetails error', err);
+    detailsEl.innerHTML = `<div class="question-card">Erro ao obter detalhes: ${String(err)}</div>`;
+  }
+}
 
 async function initQuiz() {
   quiz.innerHTML = "<p>Carregando perguntas...</p>";
@@ -20,6 +96,9 @@ async function initQuiz() {
     questions = await res.json();
     indice = 0;
     selectedOptions = [];
+    // hide steam search when (re)starting quiz
+    const steamContainer = document.getElementById('steamSearchContainer');
+    if (steamContainer) steamContainer.style.display = 'none';
     // show progress bar
     const prog = document.getElementById('progress');
     if (prog) { prog.style.display = 'block'; updateProgress(); }
@@ -64,8 +143,7 @@ function mostrarPergunta() {
         responder(optId);
       });
     });
-    // update avatar preview while answering
-    updateAvatar();
+    // avatar removed: no preview update
   } else {
     enviarRespostas();
   }
@@ -77,113 +155,18 @@ function responder(optId) {
   mostrarPergunta();
 }
 
-// --- Avatar assembly logic ---
-function getOptionById(id){
-  for(const q of questions){
-    const opt = q.options.find(o=>o.id===id);
-    if(opt) return opt;
-  }
-  return null;
-}
-
-function getAccessoriesForSelected(selected){
-  const acc = new Set();
-  for(const id of selected){
-    const opt = getOptionById(id);
-    if(!opt || !opt.filters) continue;
-    const f = opt.filters;
-    // genre
-    if(f.genre){
-      for(const g of f.genre){
-        const gg = String(g).toLowerCase();
-        if(gg.includes('rpg')){ acc.add('cloak'); acc.add('sword'); }
-        if(gg.includes('simulação')||gg.includes('simul')) acc.add('flower');
-        if(gg.includes('criativo')) acc.add('paintbrush');
-        if(gg.includes('puzzle')) acc.add('monocle');
-        if(gg.includes('estratégia')) acc.add('shield');
-      }
-    }
-    // difficulty
-    if(f.difficulty){
-      for(const d of f.difficulty){
-        const dd = String(d).toLowerCase();
-        if(dd.includes('muito')||dd.includes('alta')) acc.add('helmet');
-      }
-    }
-    // mood
-    if(f.mood){
-      for(const m of f.mood){
-        const mm = String(m).toLowerCase();
-        if(mm.includes('relax')) acc.add('leaf');
-        if(mm.includes('sombr')||mm.includes('desafiador')) acc.add('mask');
-        if(mm.includes('épico')||mm.includes('epic')) acc.add('banner');
-      }
-    }
-    // keywords
-    if(f.keywords){
-      for(const k of f.keywords){
-        const kk = String(k).toLowerCase();
-        if(kk.includes('multiplayer')||kk.includes('competitiv')) acc.add('headset');
-        if(kk.includes('roguelike')||kk.includes('repet')) acc.add('compass');
-        if(kk.includes('ação')||kk.includes('rápido')||kk.includes('acao')) acc.add('boots');
-        if(kk.includes('construir')||kk.includes('custom')||kk.includes('constru')) acc.add('paintbrush');
-      }
-    }
-  }
-  // fallback: if none selected yet, show default cap
-  if(acc.size===0) acc.add('cap');
-  // limit number of accessories to 4
-  return Array.from(acc).slice(0,4);
-}
-
-function renderAvatar(accessories){
-  const avatarEl = document.getElementById('avatar');
-  if(!avatarEl) return;
-  // build simple SVG with base and accessory groups
-  const labels = accessories.map(a=>`<span class="accessory-label">${a}</span>`).join('');
-  const svg = `
-    <svg viewBox="0 0 200 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Avatar">
-      <defs>
-        <filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#000" flood-opacity="0.25"/></filter>
-      </defs>
-      <!-- body -->
-      <g id="base" filter="url(#soft)">
-        <circle cx="100" cy="60" r="36" fill="#ffd8b6" />
-        <rect x="60" y="100" width="80" height="90" rx="18" fill="#08303a" />
-        <rect x="80" y="180" width="40" height="12" rx="6" fill="#022426" />
-      </g>
-      <!-- accessories -->
-      ${accessories.includes('cap')?`<g id="cap"><path d="M64 48c8-18 72-18 88 0-12 18-80 18-88 0z" fill="#064e3b"/></g>`:''}
-      ${accessories.includes('cloak')?`<g id="cloak"><path d="M60 110 q40 50 80 0 v-12 q-40 36 -80 0z" fill="#3b0f3b" opacity="0.95"/></g>`:''}
-      ${accessories.includes('sword')?`<g id="sword" transform="translate(140,120) rotate(-20)"><rect x="0" y="0" width="6" height="64" fill="#cbd5e1"/><rect x="-6" y="64" width="18" height="8" fill="#92400e"/></g>`:''}
-      ${accessories.includes('helmet')?`<g id="helmet"><ellipse cx="100" cy="46" rx="42" ry="22" fill="#9ca3af" opacity="0.95"/></g>`:''}
-      ${accessories.includes('headset')?`<g id="headset"><rect x="56" y="44" width="12" height="24" rx="6" fill="#111827"/><rect x="132" y="44" width="12" height="24" rx="6" fill="#111827"/><path d="M68 52 q32 18 64 0" stroke="#111827" stroke-width="6" fill="none" stroke-linecap="round"/></g>`:''}
-      ${accessories.includes('monocle')?`<g id="monocle"><circle cx="120" cy="60" r="8" stroke="#111827" stroke-width="2" fill="rgba(255,255,255,0.06)"/><line x1="128" y1="64" x2="150" y2="84" stroke="#d1d5db" stroke-width="1"/></g>`:''}
-      ${accessories.includes('paintbrush')?`<g id="paintbrush" transform="translate(34,150) rotate(-20)"><rect x="0" y="0" width="48" height="6" rx="3" fill="#a16207"/><path d="M48 3 q12 6 18 0 q-6 -10 -18 0z" fill="#ef4444"/></g>`:''}
-      ${accessories.includes('flower')?`<g id="flower" transform="translate(60,32)"><circle cx="0" cy="0" r="6" fill="#ffd166"/><path d="M8 0 a8 8 0 0 1 -8 8" stroke="#ff8c42" stroke-width="3"/></g>`:''}
-      ${accessories.includes('shield')?`<g id="shield" transform="translate(8,120)"><path d="M16 0 l32 0 l8 20 q-24 20 -48 0z" fill="#0f1720" stroke="#94a3b8" stroke-width="2"/></g>`:''}
-      ${accessories.includes('mask')?`<g id="mask"><rect x="76" y="56" width="48" height="18" rx="9" fill="#111827" opacity="0.95"/></g>`:''}
-      ${accessories.includes('compass')?`<g id="compass" transform="translate(4,200)"><circle cx="12" cy="12" r="12" fill="#06b6d4"/><path d="M12 6 L15 12 L12 18 L9 12 Z" fill="#022426"/></g>`:''}
-      ${accessories.includes('boots')?`<g id="boots"><rect x="70" y="186" width="18" height="8" rx="4" fill="#7c2d12"/><rect x="112" y="186" width="18" height="8" rx="4" fill="#7c2d12"/></g>`:''}
-    </svg>`;
-  avatarEl.innerHTML = svg + `<div class="accessory-labels">${labels}</div>`;
-}
-
-function updateAvatar(){
-  const avatarEl = document.getElementById('avatar');
-  if(!avatarEl) return;
-  const acc = getAccessoriesForSelected(selectedOptions);
-  renderAvatar(acc);
-}
-
-// update avatar when showing final result too
-const origMostrarResultado = mostrarResultado;
+// avatar feature removed per user request
 
 function updateProgress(){
   const prog = document.getElementById('progress');
   if (!prog || !questions.length) return;
-  // clamp percentage between 0 and 100
-  let pct = Math.round((indice/questions.length)*100);
+  // compute percentage: number of answered questions over total
+  // when indice equals questions.length treat as 100
+  let pct = 0;
+  const total = questions.length;
+  if (total > 0) {
+    pct = Math.round((Math.min(indice, total) / total) * 100);
+  }
   if (pct < 0) pct = 0;
   if (pct > 100) pct = 100;
   const bar = prog.querySelector('i');
@@ -193,17 +176,17 @@ function updateProgress(){
 
 async function enviarRespostas() {
   quiz.innerHTML = "";
-  resultado.innerHTML = "<p>Calculando sua recomendação...</p>";
+  resultado.innerHTML = "<p>Calculando suas recomendações...</p>";
 
   try {
-    const res = await fetch("/recomendar", {
+    const res = await fetch("/recomendar/top", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ selectedOptions })
+      body: JSON.stringify({ selectedOptions, n: 5 })
     });
 
     const data = await res.json();
-    mostrarResultado(data.recomendacao);
+    mostrarResultados(data.recomendacoes || []);
   } catch (err) {
     console.error(err);
     resultado.innerHTML = `
@@ -218,6 +201,51 @@ async function enviarRespostas() {
     const r2 = document.getElementById('retrySend');
     if (r2) r2.addEventListener('click', () => enviarRespostas());
   }
+}
+
+function mostrarResultados(list){
+  if(!Array.isArray(list) || list.length===0){
+    resultado.innerHTML = '<div class="question-card">Nenhuma recomendação disponível.</div>';
+    return;
+  }
+  // render up to 5 cards with Steam link + details button when available
+  const cardsHtml = list.slice(0,5).map(item => {
+    const g = item.game;
+    const steamObj = item.steam;
+    const steam = steamObj && steamObj.details && steamObj.details.data ? steamObj.details.data : null;
+    const appid = steamObj && steamObj.appid ? steamObj.appid : null;
+    const img = steam && steam.header_image ?
+      `<img src="${steam.header_image}" alt="${g.name}" style="width:220px;height:120px;object-fit:cover;border-radius:8px"/>` :
+      (g.image?`<img src="${encodeURI('/'+g.image)}" style="width:220px;height:120px;object-fit:cover;border-radius:8px"/>`:'');
+    const short = steam ? (steam.short_description || steam.about_the_game || '') : (g.description || '');
+    const steamLink = appid ? `https://store.steampowered.com/app/${appid}/` : null;
+    return `
+      <div class="result-card">
+        ${img}
+        <div class="result-meta">
+          <h3>${g.name}</h3>
+          <p class="muted"><em>${g.genre} • ${g.mood} • ${g.difficulty}</em></p>
+          <p class="short">${short}</p>
+          <p style="font-weight:700">Score: ${item.score}</p>
+          <div class="result-actions">
+            ${appid ? `<a class="btn" href="${steamLink}" target="_blank" rel="noopener">Ver na Steam</a>` : ''}
+            ${appid ? `<button class="btn secondary" data-appid="${appid}" onclick="showSteamDetails(${appid})">Detalhes</button>` : ''}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+  resultado.innerHTML = cardsHtml;
+  // Ensure progress shows 100% now that recommendations are displayed
+  const prog = document.getElementById('progress');
+  if (prog) {
+    const bar = prog.querySelector('i');
+    if (bar) bar.style.width = '100%';
+    prog.setAttribute('aria-valuenow', 100);
+  }
+  // show steam search container so user can further explore
+  const steamContainer = document.getElementById('steamSearchContainer');
+  if (steamContainer) steamContainer.style.display = 'block';
 }
 
 function mostrarResultado(game) {
@@ -259,8 +287,6 @@ function mostrarResultado(game) {
   }
 
   // small confetti burst
-  // update avatar to final accessories
-  updateAvatar();
   launchConfetti(18);
 }
 
