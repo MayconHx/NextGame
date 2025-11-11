@@ -28,6 +28,17 @@ body{
   text-align:center;
 }
 
+.layout{display:flex;gap:20px;align-items:flex-start;justify-content:space-between}
+.layout > #quiz{flex:1}
+.avatar-panel{width:260px;background:rgba(255,255,255,0.02);border-radius:10px;padding:12px;text-align:center}
+.avatar-panel h4{margin:6px 0 8px;font-size:1rem}
+.avatar{width:220px;height:260px;margin:0 auto;display:flex;align-items:center;justify-content:center}
+.avatar svg{width:100%;height:100%}
+.hint{font-size:0.85rem;color:rgba(230,238,246,0.7);margin-top:8px}
+
+.accessory-labels{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:8px}
+.accessory-label{background:rgba(255,255,255,0.03);padding:6px 8px;border-radius:999px;font-size:0.8rem}
+
 h1{
   text-align:center;
   margin-top:0;

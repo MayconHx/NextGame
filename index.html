@@ -18,7 +18,14 @@
   <div class="container">
     <h1>NextGame — Recomendador de Jogos</h1>
     <div class="progress" id="progress" style="display:none"><i></i></div>
-    <div id="quiz" aria-live="polite"></div>
+    <div class="layout">
+      <div id="quiz" aria-live="polite"></div>
+      <aside id="avatarPanel" class="avatar-panel" aria-hidden="false">
+        <h4>Seu personagem</h4>
+        <div id="avatar" class="avatar"></div>
+        <p class="hint">Acessórios aparecem conforme suas escolhas.</p>
+      </aside>
+    </div>
     <div id="resultado" aria-live="polite"></div>
   </div>
 
