@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import fs from "fs";
 import path from "path";
+import { Client } from "pg";
 
 const app = express();
 app.use(cors());
@@ -91,11 +92,65 @@ const questions = [
   }
 ];
 
-const dbPath = path.join(process.cwd(), "db.json");
-let db = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
+let db = { games: [] };
+
+async function loadDb() {
+  // If DB_HOST is defined, try Postgres first
+  if (process.env.DB_HOST) {
+    const client = new Client({
+      host: process.env.DB_HOST,
+      port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 5432,
+      database: process.env.POSTGRES_DB || process.env.DB_NAME || 'meu_banco_docker',
+      user: process.env.POSTGRES_USER || 'postgres',
+      password: process.env.POSTGRES_PASSWORD || 'postgres'
+    });
+    try {
+      await client.connect();
+      const res = await client.query('SELECT id, name, genre, difficulty, mood, description, image, keywords FROM games ORDER BY id');
+      db = { games: res.rows.map(r => ({
+        id: r.id,
+        name: r.name,
+        genre: r.genre,
+        difficulty: r.difficulty,
+        mood: r.mood,
+        description: r.description,
+        image: r.image,
+        keywords: r.keywords
+      })) };
+    } catch (err) {
+      console.error('Erro ao carregar dados do Postgres:', err);
+    } finally {
+      try { await client.end(); } catch (e) {}
+    }
+    return;
+  }
+
+  // Fallback: read local file if exists
+  const dbPath = path.join(process.cwd(), "db.json");
+  if (fs.existsSync(dbPath)) {
+    try {
+      db = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
+    } catch (err) {
+      console.error('Erro ao ler db.json:', err);
+    }
+  } else {
+    console.warn('db.json não encontrado e nenhuma configuração de DB presente; endpoints /games podem retornar vazio.');
+  }
+}
+
+// Start loading DB at module load; servers/tests will use whatever is loaded.
+loadDb().catch(err => console.error('Erro em loadDb:', err));
 
 // Endpoint para retornar todos os jojos 
-app.get("/games", (req, res) => {
+app.get("/games", async (req, res) => {
+  // If no data loaded yet and Postgres is configured, try loading on demand
+  if ((!db.games || db.games.length === 0) && process.env.DB_HOST) {
+    try {
+      await loadDb();
+    } catch (err) {
+      console.error('Erro ao recarregar DB on-demand:', err);
+    }
+  }
   res.json(db.games);
 });
 

@@ -3,10 +3,11 @@ version: '3.8'
 services:
   app:
     build: .
+    ports:
       - "3000:3000"
     environment:
       DB_HOST: db
-      DB_NAME: Banco_de_Dados
+      DB_NAME: meu_banco_docker
       DB_PORT: 5432
     depends_on:
       - db
@@ -16,10 +17,13 @@ services:
     container_name: postgres_db
     environment:
       POSTGRES_DB: meu_banco_docker
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres:/docker-entrypoint-initdb.d:ro
 
 volumes:
   pgdata:

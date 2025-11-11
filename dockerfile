@@ -4,8 +4,12 @@ WORKDIR /app
 
 COPY . . 
 
-RUN npm install
+RUN npm install --production
+
+# Default port inside container
+ENV PORT=3000
 
 EXPOSE 3000
 
-CMD ["npm", "start"]
+# Start the app directly with node (cross-platform)
+CMD ["node", "server.js"]
