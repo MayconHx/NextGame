@@ -11,83 +11,66 @@ app.use(express.json());
 // Servir arquivos estáticos (index.html, style.css, script.js, imagens, etc.)
 app.use(express.static(process.cwd()));
 
-// Perguntas dinâmicas 
-// Cada opção tem um id único e um objeto `filters` com atributos a serem usados na recomendação.
+// Perguntas dinâmicas — texto reformulado para clareza e leitura rápida
 const questions = [
   {
     id: "q1",
     text: "Que tipo de experiência você quer agora?",
     options: [
-      {
-        id: "q1_opt1",
-        text: "Uma história profunda e imersiva, com escolhas que importam (narrativa/RPG)",
-        filters: { genre: ["RPG"], keywords: ["história", "narrativa", "historia"] }
-      },
-      {
-        id: "q1_opt2",
-        text: "Sessões curtas e relaxantes, algo para desestressar (simulação/casual)",
-        filters: { genre: ["Simulação"], mood: ["relaxante", "relaxante"] }
-      },
-      {
-        id: "q1_opt3",
-        text: "Desafio técnico e combate exigente — quero testar minhas habilidades",
-        filters: { difficulty: ["alta", "muito alta"], keywords: ["desafio", "difícil", "difícil"] }
-      },
-      {
-        id: "q1_opt4",
-        text: "Criatividade e liberdade: construir, decorar ou criar algo do zero",
-        filters: { genre: ["Criativo"], keywords: ["construir", "criativo", "customizar"] }
-      }
+      { id: "q1_opt1", text: "Imersiva, com história e decisões (RPG)", filters: { genre: ["RPG"], keywords: ["história","narrativa"] } },
+      { id: "q1_opt2", text: "Calma e relaxante, sem pressa (Simulação)", filters: { genre: ["Simulação"], mood: ["relaxante"] } },
+      { id: "q1_opt3", text: "Desafiadora e exigente — quero testar habilidades", filters: { difficulty: ["alta","muito alta"], keywords: ["desafio","difícil"] } },
+      { id: "q1_opt4", text: "Criativa: construir, decorar ou inventar coisas", filters: { genre: ["Criativo"], keywords: ["construir","criativo"] } }
     ]
   },
   {
     id: "q2",
     text: "Como você prefere jogar?",
     options: [
-      { id: "q2_opt1", text: "Sozinho, focado em narrativa e imersão", filters: { mood: ["imersivo", "épico"], genre: ["RPG"] } },
-      { id: "q2_opt2", text: "Com amigos ou em modo competitivo", filters: { keywords: ["multiplayer", "competitivo", "equipe"] } },
-      { id: "q2_opt3", text: "Puzzles inteligentes e desafios de lógica", filters: { genre: ["Puzzle"], keywords: ["puzzle", "inteligente"] } },
-      { id: "q2_opt4", text: "Partidas rápidas e intensas", filters: { keywords: ["rápido", "ação", "adrenalina"] } }
+      { id: "q2_opt1", text: "Sozinho, focado na história ou exploração", filters: { mood: ["imersivo"], genre: ["RPG","Plataforma"] } },
+      { id: "q2_opt2", text: "Com amigos — coop ou competitivo", filters: { keywords: ["multiplayer","competitivo","equipe"] } },
+      { id: "q2_opt3", text: "Resolver puzzles e pensar soluções", filters: { genre: ["Puzzle"], keywords: ["puzzle","inteligente"] } },
+      { id: "q2_opt4", text: "Partidas rápidas, ação intensa", filters: { keywords: ["rápido","ação","adrenalina"] } }
     ]
   },
   {
     id: "q3",
-    text: "Qual tom/atmosfera você prefere?",
+    text: "Que clima você quer no jogo?",
     options: [
-      { id: "q3_opt1", text: "Calmo e relaxante (ideal para baixar o ritmo)", filters: { mood: ["relaxante", "calmo"] } },
-      { id: "q3_opt2", text: "Sombrio e misterioso", filters: { mood: ["sombrio"], keywords: ["sombrio", "mistério"] } },
-      { id: "q3_opt3", text: "Estiloso e com personagens marcantes", filters: { keywords: ["personagens", "estiloso"] } },
-      { id: "q3_opt4", text: "Épico e estratégico, pensar a longo prazo", filters: { genre: ["Estratégia"], mood: ["épico"] } }
+      { id: "q3_opt1", text: "Leve e acolhedor", filters: { mood: ["relaxante","calmo"] } },
+      { id: "q3_opt2", text: "Sombrio e tenso", filters: { mood: ["sombrio","desafiador"] } },
+      { id: "q3_opt3", text: "Estiloso e com personagens marcantes", filters: { keywords: ["personagens","estiloso"] } },
+      { id: "q3_opt4", text: "Épico / estratégico, pensar a longo prazo", filters: { genre: ["Estratégia"], mood: ["épico"] } }
     ]
   },
   {
     id: "q4",
-    text: "Que tipo de mecânica te chama mais atenção?",
+    text: "Qual mecânica te atrai mais?",
     options: [
-      { id: "q4_opt1", text: "Combate rápido e agressivo", filters: { keywords: ["combate", "ação", "rápido"] } },
-      { id: "q4_opt2", text: "Exploração e descoberta em mundo aberto", filters: { keywords: ["explorar", "mundo aberto"] } },
-      { id: "q4_opt3", text: "Construção, customização e criatividade", filters: { keywords: ["construir", "customizar", "criativo"] } },
-      { id: "q4_opt4", text: "Sistema de turnos e decisões táticas", filters: { keywords: ["turnos", "estratégia"], genre: ["Estratégia", "RPG"] } }
+      { id: "q4_opt1", text: "Combate rápido e técnico", filters: { keywords: ["combate","ação"] } },
+      { id: "q4_opt2", text: "Explorar e descobrir segredos", filters: { keywords: ["explorar","mundo aberto"] } },
+      { id: "q4_opt3", text: "Construção e customização (criatividade)", filters: { keywords: ["construir","customizar"] } },
+      { id: "q4_opt4", text: "Sistema por turnos e escolhas táticas", filters: { keywords: ["turnos","estratégia"] , genre: ["Estratégia","RPG"] } }
     ]
   },
   {
     id: "q5",
-    text: "Qual nível de desafio você quer?",
+    text: "Que nível de desafio você prefere?",
     options: [
-      { id: "q5_opt1", text: "Muito difícil — quero um teste sério", filters: { difficulty: ["muito alta"] } },
-      { id: "q5_opt2", text: "Desafio moderado e justo", filters: { difficulty: ["média"] } },
-      { id: "q5_opt3", text: "Fácil / relax — não quero frustração", filters: { difficulty: ["baixa"] } },
-      { id: "q5_opt4", text: "Indiferente — o jogo pode me surpreender", filters: { } }
+      { id: "q5_opt1", text: "Quero um desafio sério (muito difícil)", filters: { difficulty: ["muito alta"] } },
+      { id: "q5_opt2", text: "Desafio moderado (divertido e justo)", filters: { difficulty: ["média"] } },
+      { id: "q5_opt3", text: "Fácil / relax — jogar sem frustração", filters: { difficulty: ["baixa"] } },
+      { id: "q5_opt4", text: "Tanto faz — deixo o jogo me surpreender", filters: { } }
     ]
   },
   {
     id: "q6",
-    text: "Algo mais que te interessa?",
+    text: "O que mais te interessa agora?",
     options: [
-      { id: "q6_opt1", text: "Boas histórias e diálogos inteligentes", filters: { keywords: ["narrativa", "diálogos", "história"] } },
-      { id: "q6_opt2", text: "Multiplayer e interação com outros jogadores", filters: { keywords: ["multiplayer", "coop", "equipe"] } },
-      { id: "q6_opt3", text: "Rejogabilidade — mecânicas que mudam a cada partida", filters: { keywords: ["roguelike", "repetível"] } },
-      { id: "q6_opt4", text: "Gráficos e estética marcantes", filters: { keywords: ["estiloso"] } }
+      { id: "q6_opt1", text: "História e diálogos profundos", filters: { keywords: ["narrativa","diálogos","história"] } },
+      { id: "q6_opt2", text: "Rejogabilidade: quero algo que eu repita várias vezes", filters: { keywords: ["roguelike","repetível"] } },
+      { id: "q6_opt3", text: "Competição e partidas rápidas com outros", filters: { keywords: ["multiplayer","competitivo"] } },
+      { id: "q6_opt4", text: "Atmosfera visual e estilo marcante", filters: { keywords: ["estiloso"] } }
     ]
   }
 ];
@@ -163,6 +146,7 @@ app.get("/questions", (req, res) => {
 app.post("/recomendar", (req, res) => {
   // Espera body.selectedOptions = ["q1_opt2", "q2_opt1", ...]
   const selected = req.body.selectedOptions || [];
+  console.log('/recomendar called with', selected);
 
   // Monta filtros a partir das opções selecionadas
   const selectedFilters = [];
@@ -225,6 +209,11 @@ app.post("/recomendar", (req, res) => {
 // Rota raiz explícita (garante que index.html seja enviada quando acessar '/').
 app.get("/", (req, res) => {
   res.sendFile(path.join(process.cwd(), "index.html"));
+});
+
+// Health check for quick diagnostics
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
 });
 
 const PORT = process.env.PORT || 3000;

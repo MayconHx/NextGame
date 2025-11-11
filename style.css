@@ -20,24 +20,36 @@ body{
 
 .container{
   width:100%;
-  max-width:720px;
+  max-width:820px;
   background:var(--card);
-  padding:28px;
-  border-radius:12px;
-  box-shadow:0 8px 30px rgba(2,6,23,0.6);
+  padding:36px;
+  border-radius:14px;
+  box-shadow:0 12px 40px rgba(2,6,23,0.6);
+  text-align:center;
 }
 
-h1{text-align:center;margin-top:0}
+h1{
+  text-align:center;
+  margin-top:0;
+  font-size:2.2rem;
+  letter-spacing:0.6px;
+}
+
+/* Make base text larger for readability */
+body, p, li, input, button {
+  font-size:1.05rem;
+}
 
 button{
-  padding:10px 16px;
-  border-radius:8px;
+  padding:12px 18px;
+  border-radius:10px;
   border:none;
   background:var(--accent);
   color:#042027;
   cursor:pointer;
-  font-weight:600;
-  margin:8px;
+  font-weight:700;
+  margin:10px;
+  transition:transform .08s ease, box-shadow .08s ease;
 }
 
 button.secondary{
@@ -53,17 +65,58 @@ button.secondary{
 }
 
 .modal-content{
-  background:#0b1220;padding:24px;border-radius:10px;text-align:center;
-  width:90%;max-width:420px;
+  background:#0b1220;padding:28px;border-radius:12px;text-align:center;
+  width:92%;max-width:520px;
 }
 
+.modal-content h2{font-size:1.6rem;margin-bottom:6px}
+.modal-content p{font-size:1.05rem;color:rgba(230,238,246,0.92)}
+
+/* Question card and options */
 .question-card{
-  padding:20px;border-radius:10px;background:#071127;margin-top:12px;
+  padding:24px;border-radius:12px;background:#071127;margin-top:18px;text-align:center;
 }
+
+.question-card p{font-size:1.12rem;margin:0 0 12px}
+
+.options{display:grid;grid-template-columns:1fr;gap:10px;align-items:center;justify-items:center}
+
+.opt-btn{
+  width:100%;max-width:720px;text-align:center;padding:14px 18px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:var(--text);cursor:pointer;font-weight:600;font-size:1rem
+}
+
+.opt-btn:hover{background:rgba(6,182,212,0.06);transform:translateY(-2px)}
+.opt-btn:active{transform:translateY(0)}
+
+.progress{height:10px;background:rgba(255,255,255,0.06);border-radius:999px;overflow:hidden;margin:16px 0}
+.progress > i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),#00e0ff);width:0%}
 
 .result-card{
-  padding:16px;border-radius:8px;background:linear-gradient(180deg,#052026,#0b1822);
-  display:flex;gap:12px;align-items:center;margin-top:14px;
+  padding:18px;border-radius:10px;background:linear-gradient(180deg,#052026,#0b1822);
+  display:flex;gap:16px;align-items:center;margin-top:18px;flex-wrap:wrap;justify-content:center
 }
 
-.result-card img{width:120px;height:80px;object-fit:cover;border-radius:6px}
+.result-card img{width:240px;height:160px;object-fit:cover;border-radius:10px;box-shadow:0 8px 24px rgba(2,6,23,0.6)}
+
+/* Gamification visuals */
+.badge{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:linear-gradient(90deg,#ffd166,#ff8c42);color:#092021;font-weight:700;box-shadow:0 6px 20px rgba(255,140,66,0.12);margin-top:8px}
+.badge svg{width:20px;height:20px}
+.xp-counter{font-weight:800;color:var(--accent);font-size:1.05rem;margin-left:8px}
+
+.confetti-piece{position:fixed;pointer-events:none;z-index:9999;opacity:0.95}
+.confetti-fall{animation:confetti-fall 1.6s linear forwards}
+@keyframes confetti-fall{100%{transform:translateY(120vh) rotate(520deg);opacity:0}}
+
+.celebrate-scale{animation:celebrate-scale 420ms cubic-bezier(.25,.8,.25,1)}
+@keyframes celebrate-scale{0%{transform:scale(.85)}50%{transform:scale(1.06)}100%{transform:scale(1)}}
+
+/* Responsive tweaks */
+@media(min-width:720px){
+  .options{grid-template-columns:1fr 1fr}
+  .opt-btn{font-size:1.02rem}
+}
+
+@media(max-width:420px){
+  h1{font-size:1.6rem}
+  .opt-btn{padding:12px}
+}

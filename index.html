@@ -9,16 +9,17 @@
 <body>
   <div id="modal" class="modal">
     <div class="modal-content">
-      <h2>Bem-vindo(a)!</h2>
-      <p>Responda 6 perguntas e descubra  qual jogo combina com você.</p>
+      <h2>Bem-vindo(a) ao NextGame</h2>
+      <p style="margin-bottom:12px">Responda 6 perguntas rápidas. Em alguns segundos eu recomendo um jogo que combina com o que você quer jogar agora.</p>
       <button id="startBtn">Começar</button>
     </div>
   </div>
 
   <div class="container">
-    <h1>NextGame</h1>
-    <div id="quiz"></div>
-    <div id="resultado"></div>
+    <h1>NextGame — Recomendador de Jogos</h1>
+    <div class="progress" id="progress" style="display:none"><i></i></div>
+    <div id="quiz" aria-live="polite"></div>
+    <div id="resultado" aria-live="polite"></div>
   </div>
 
   <script src="script.js"></script>
