@@ -85,9 +85,7 @@ INSERT INTO games (id, name, genre, difficulty, mood, description, image, keywor
 (57,'Banner Saga 2','Estratégia','média','narrativo','Continuação com ênfase tática e narrativa.','/images/Banner Saga 2.jpeg','["tático","narrativa","turnos","estratégia"]'::jsonb),
 (58,'Northgard','Estratégia','média','sobrevivência','RTS/estratégia com elementos de sobrevivência.','/images/Northgard.jpeg','["sobrevivência","gestão","estratégia","viking"]'::jsonb),
 (59,'RollerCoaster Tycoon (alt)','Simulação','média','criativo','Variante.','/images/RollerCoaster Tycoon.jpeg','["construir","gestão","simulação","criativo"]'::jsonb),
- (60,'Terraria (alt)','Indie','média','criativo','Variante.','/images/Terraria.jpeg','["construir","explorar","sandbox","indie"]'::jsonb)
-,
--- Additional entries to reach ~120 (ids 61..120) to have ~20 per category
+(60,'Terraria (alt)','Indie','média','criativo','Variante.','/images/Terraria.jpeg','["construir","explorar","sandbox","indie"]'::jsonb),
 (61,'Forza Horizon 5','Ação','média','aventura','Corridas em mundo aberto com belos cenários.','/images/Forza Horizon 5.jpeg','["corrida","mundo aberto","rápido","competitivo"]'::jsonb),
 (62,'Resident Evil 2 Remake','Ação','média','tenso','Remake do clássico survival horror com atmosfera intensa.','/images/RE2 Remake.jpeg','["survival","horror","ação","tenso"]'::jsonb),
 (63,'Metal Gear Solid V','Ação','média','stealth','Ação tática com liberdade e mecânicas stealth.','/images/Metal Gear Solid V.jpeg','["stealth","ação","história","explorar"]'::jsonb),
@@ -106,7 +104,7 @@ INSERT INTO games (id, name, genre, difficulty, mood, description, image, keywor
 (76,'RimWorld','Simulação','média','sobrevivência','Simulação de colônia com foco em histórias emergentes.','/images/RimWorld.jpeg','["gestão","sobrevivência","simulação","colônia"]'::jsonb),
 (77,'Graveyard Keeper','Simulação','média','humor','Simulador de cemitério com humor negro e gestão.','/images/Graveyard Keeper.jpeg','["gestão","humor","simulação","indie"]'::jsonb),
 (78,'My Time at Portia','Simulação','média','criativo','Simulador de oficina com crafting, agricultura e relações.','/images/My Time at Portia.jpeg','["craft","simulação","relacionamentos","criativo"]'::jsonb),
-(79,'Subnautica','Simulação','média','exploração','Exploração subaquática com crafting e sobrevivência.','/images/Subnautica.jpeg','["explorar","sobrevivência","simulação","baixo d'água"]'::jsonb),
+ (79,'Subnautica','Simulação','média','exploração','Exploração subaquática com crafting e sobrevivência.','/images/Subnautica.jpeg','["explorar","sobrevivência","simulação","baixo d''água"]'::jsonb),
 (80,'Satisfactory','Simulação','média','industrial','Construção de fábricas em mundo aberto com otimização.','/images/Satisfactory.jpeg','["fábrica","construir","simulação","produção"]'::jsonb),
 (81,'Insurgency: Sandstorm','FPS','média','tático','FPS tático realista com combate em equipe.','/images/Insurgency Sandstorm.jpeg','["tático","realista","multiplayer","equipe"]'::jsonb),
 (82,'Paladins','FPS','média','hero shooter','Hero shooter com personagens e habilidades.','/images/Paladins.jpeg','["heróis","multiplayer","competitivo","rápido"]'::jsonb),

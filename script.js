@@ -12,82 +12,7 @@ startBtn.addEventListener("click", () => {
   initQuiz();
 });
 
-// --- Steam search UI binding ---
-document.addEventListener('DOMContentLoaded', () => {
-  const btn = document.getElementById('steamSearchBtn');
-  const input = document.getElementById('steamQuery');
-  if (btn && input) {
-    btn.addEventListener('click', async () => {
-      const q = input.value.trim();
-      if (!q) return;
-      await performSteamSearch(q);
-    });
-    input.addEventListener('keydown', (ev) => {
-      if (ev.key === 'Enter') btn.click();
-    });
-  }
-});
-
-async function performSteamSearch(q){
-  const resultsEl = document.getElementById('steamResults');
-  const detailsEl = document.getElementById('steamDetails');
-  if(resultsEl) resultsEl.innerHTML = '<div class="question-card">Buscando...</div>';
-  if(detailsEl) detailsEl.innerHTML = '';
-  try{
-    const res = await fetch(`/steam/search?q=${encodeURIComponent(q)}&limit=20`);
-    if(!res.ok) throw new Error('Erro na busca');
-    const json = await res.json();
-    renderSteamResults(json.results || []);
-  }catch(err){
-    console.error('steam search error', err);
-    if(resultsEl) resultsEl.innerHTML = `<div class="question-card"><strong>Erro ao buscar na Steam:</strong> ${String(err)}</div>`;
-  }
-}
-
-function renderSteamResults(items){
-  const resultsEl = document.getElementById('steamResults');
-  if(!resultsEl) return;
-  if(!items || items.length===0){ resultsEl.innerHTML = '<div class="question-card">Nenhum resultado encontrado.</div>'; return; }
-  resultsEl.innerHTML = '';
-  for(const it of items){
-    const div = document.createElement('div');
-    div.className = 'steam-result';
-    div.textContent = `${it.name} (${it.appid})`;
-    div.addEventListener('click', () => showSteamDetails(it.appid));
-    resultsEl.appendChild(div);
-  }
-}
-
-async function showSteamDetails(appid){
-  const detailsEl = document.getElementById('steamDetails');
-  if(!detailsEl) return;
-  detailsEl.innerHTML = '<div class="question-card">Carregando detalhes...</div>';
-  try{
-    const res = await fetch(`/steam/app/${encodeURIComponent(appid)}`);
-    if(!res.ok) throw new Error('Erro ao obter detalhes');
-    const json = await res.json();
-    const body = json.details && json.details.data ? json.details.data : null;
-    if(!body || !json.details.success){
-      detailsEl.innerHTML = `<div class="question-card">Detalhes indisponíveis para appid ${appid}.</div>`;
-      return;
-    }
-    // Render some useful fields
-    const name = body.name || '—';
-    const desc = body.short_description || body.about_the_game || '';
-    const header = `<h4>${name} — ${appid}</h4>`;
-    const htmlDesc = `<p>${desc}</p>`;
-    const img = (body.header_image) ? `<img src="${body.header_image}" alt="${name}" style="max-width:220px;border-radius:8px;margin-bottom:8px"/>` : '';
-    const meta = [];
-    if(body.release_date && body.release_date.date) meta.push(`Lançamento: ${body.release_date.date}`);
-    if(body.developers) meta.push(`Dev: ${Array.isArray(body.developers)?body.developers.join(', '):body.developers}`);
-    if(body.publishers) meta.push(`Publisher: ${Array.isArray(body.publishers)?body.publishers.join(', '):body.publishers}`);
-    const metaHtml = `<p>${meta.join(' • ')}</p>`;
-    detailsEl.innerHTML = `${img}${header}${metaHtml}${htmlDesc}`;
-  }catch(err){
-    console.error('showSteamDetails error', err);
-    detailsEl.innerHTML = `<div class="question-card">Erro ao obter detalhes: ${String(err)}</div>`;
-  }
-}
+// UI de busca Steam removida — funções relacionadas deletadas a pedido do usuário
 
 async function initQuiz() {
   quiz.innerHTML = "<p>Carregando perguntas...</p>";
@@ -96,10 +21,10 @@ async function initQuiz() {
     questions = await res.json();
     indice = 0;
     selectedOptions = [];
-    // hide steam search when (re)starting quiz
+    // esconder a busca da Steam ao (re)iniciar o quiz
     const steamContainer = document.getElementById('steamSearchContainer');
     if (steamContainer) steamContainer.style.display = 'none';
-    // show progress bar
+    // mostrar a barra de progresso
     const prog = document.getElementById('progress');
     if (prog) { prog.style.display = 'block'; updateProgress(); }
     mostrarPergunta();
@@ -124,26 +49,91 @@ async function initQuiz() {
 function mostrarPergunta() {
   if (indice < questions.length) {
     const q = questions[indice];
-    const optionsHtml = q.options.map(o => `
-      <button class=\"opt-btn\" data-opt-id=\"${o.id}\">${o.text}</button>
-    `).join("");
+
+    // utilitário: mapear filtros -> dificuldade / foco / tempo
+    const mapDifficulty = (filters) => {
+      if (!filters) return 'Média';
+      const d = filters.difficulty || [];
+      if (d.some(x=>/muito|muito alta|muitoalto/i.test(x))) return 'Alta';
+      if (d.some(x=>/alta/i.test(x))) return 'Alta';
+      if (d.some(x=>/média|media/i.test(x))) return 'Média';
+      if (d.some(x=>/baixa/i.test(x))) return 'Baixa';
+      return 'Média';
+    };
+    const mapFocus = (filters) => {
+      if (!filters) return 'Exploração';
+      const g = (filters.genre||[]).join(' ').toLowerCase();
+      const k = (filters.keywords||[]).join(' ').toLowerCase();
+      if (/rpg|história|historia|narrativa/.test(g+k)) return 'História';
+      if (/simulação|simulacao|simulação|simulacao|simulador|simulador/.test(g+k)) return 'Simulação';
+      if (/multiplayer|competitivo|equipe/.test(k)) return 'Multiplayer';
+      if (/puzzle|inteligente/.test(k)) return 'Puzzle';
+      if (/construir|construção|construcao|criativo/.test(k+g)) return 'Criatividade';
+      return 'Exploração';
+    };
+    const mapTime = (filters) => {
+      if (!filters) return 'Médio';
+      const m = (filters.mood||[]).join(' ').toLowerCase();
+      const k = (filters.keywords||[]).join(' ').toLowerCase();
+      if (/rápido|rapido|curto/.test(k+m)) return 'Curto';
+      if (/relaxante|calmo|relax/.test(m+k)) return 'Longo';
+      return 'Médio';
+    };
+
+    const iconFor = (filters, text) => {
+      const g = (filters && filters.genre)? (filters.genre.join(' ').toLowerCase()) : '';
+      const k = (filters && filters.keywords)? (filters.keywords.join(' ').toLowerCase()) : '';
+      if (/rpg|jrpg|rpg/.test(g+k)) return '🗡️';
+      if (/simulação|simulacao|simulator|simulador|sim/.test(g+k)) return '🌿';
+      if (/desafio|difícil|difícil|alta|muito alta|muitoalta/.test(g+k)) return '⚔️';
+      if (/criativ|construir|customiz|construção/.test(g+k)) return '🎨';
+      if (/multiplayer|competitiv|equipe/.test(k)) return '🤝';
+      if (/puzzle|puzzle/.test(k)) return '🧩';
+      if (/história|historia|narrativa/.test(text.toLowerCase())) return '🎭';
+      return '🎮';
+    };
+
+    const cards = q.options.map(o => {
+      const diff = mapDifficulty(o.filters);
+      const focus = mapFocus(o.filters);
+      const time = mapTime(o.filters);
+      const icon = iconFor(o.filters, o.text);
+      return `
+        <div class="mission-card" role="button" tabindex="0" data-opt-id="${o.id}">
+          <div class="icon">${icon}</div>
+          <h4>${o.text}</h4>
+          <p class="desc">${o.text}</p>
+          <div class="status">
+            <span>⭐ Dificuldade: ${diff}</span>
+            <span>🎲 Foco: ${focus}</span>
+            <span>⏳ Tempo: ${time}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
 
     quiz.innerHTML = `
       <div class="question-card">
         <p><strong>${q.text}</strong></p>
-        <div class="options">${optionsHtml}</div>
+        <div class="mission-grid">${cards}</div>
       </div>
     `;
     updateProgress();
 
-    // attach listeners
-    document.querySelectorAll('.opt-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const optId = btn.getAttribute('data-opt-id');
+    // anexar manipuladores de clique e teclado aos cartões de missão
+    document.querySelectorAll('.mission-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const optId = card.getAttribute('data-opt-id');
         responder(optId);
       });
+      card.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          const optId = card.getAttribute('data-opt-id');
+          responder(optId);
+        }
+      });
     });
-    // avatar removed: no preview update
   } else {
     enviarRespostas();
   }
@@ -155,13 +145,12 @@ function responder(optId) {
   mostrarPergunta();
 }
 
-// avatar feature removed per user request
 
 function updateProgress(){
   const prog = document.getElementById('progress');
   if (!prog || !questions.length) return;
-  // compute percentage: number of answered questions over total
-  // when indice equals questions.length treat as 100
+  // calcular porcentagem: perguntas respondidas / total
+  // quando indice === questions.length, tratar como 100%
   let pct = 0;
   const total = questions.length;
   if (total > 0) {
@@ -186,6 +175,7 @@ async function enviarRespostas() {
     });
 
     const data = await res.json();
+    // servidor agora retorna objetos compactos: { id, name, genres, shortDescription, image, score, steamLink, usedSteam }
     mostrarResultados(data.recomendacoes || []);
   } catch (err) {
     console.error(err);
@@ -208,48 +198,56 @@ function mostrarResultados(list){
     resultado.innerHTML = '<div class="question-card">Nenhuma recomendação disponível.</div>';
     return;
   }
-  // render up to 5 cards with Steam link + details button when available
-  const cardsHtml = list.slice(0,5).map(item => {
-    const g = item.game;
-    const steamObj = item.steam;
-    const steam = steamObj && steamObj.details && steamObj.details.data ? steamObj.details.data : null;
-    const appid = steamObj && steamObj.appid ? steamObj.appid : null;
-    const img = steam && steam.header_image ?
-      `<img src="${steam.header_image}" alt="${g.name}" style="width:220px;height:120px;object-fit:cover;border-radius:8px"/>` :
-      (g.image?`<img src="${encodeURI('/'+g.image)}" style="width:220px;height:120px;object-fit:cover;border-radius:8px"/>`:'');
-    const short = steam ? (steam.short_description || steam.about_the_game || '') : (g.description || '');
-    const steamLink = appid ? `https://store.steampowered.com/app/${appid}/` : null;
+  // renderizar até 6 cartões
+  const PLACEHOLDER = encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='320' height='180'><rect width='100%' height='100%' fill='%23060b06'/><text x='50%' y='50%' font-family='Arial' font-size='18' fill='%2339FF14' dominant-baseline='middle' text-anchor='middle'>Imagem indisponível</text></svg>`);
+  const cardsHtml = list.slice(0,6).map(item => {
+    // garante que imagens locais tenham caminho absoluto e caracteres escapados
+    let imgSrc = item.image || null;
+    if (imgSrc) {
+      if (!/^https?:\/\//i.test(imgSrc)) {
+        imgSrc = imgSrc.startsWith('/') ? imgSrc : '/' + imgSrc;
+        imgSrc = encodeURI(imgSrc);
+      }
+    } else {
+      imgSrc = `data:image/svg+xml;utf8,${PLACEHOLDER}`;
+    }
+    const imgTag = `<div class="card-img"><img src="${imgSrc}" alt="${item.name}" loading="lazy" onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,${PLACEHOLDER}'"/></div>`;
+    const genres = Array.isArray(item.genres) ? item.genres.join(' • ') : (item.genres||'');
+    const short = item.shortDescription || '';
+    const steamUrl = item.steamLink ? item.steamLink : `https://store.steampowered.com/search/?term=${encodeURIComponent(item.name)}`;
+    const steamBtn = `<a class="btn secondary steam-btn" href="${steamUrl}" target="_blank" rel="noopener">Ver na Steam</a>`;
     return `
-      <div class="result-card">
-        ${img}
-        <div class="result-meta">
-          <h3>${g.name}</h3>
-          <p class="muted"><em>${g.genre} • ${g.mood} • ${g.difficulty}</em></p>
-          <p class="short">${short}</p>
-          <p style="font-weight:700">Score: ${item.score}</p>
-          <div class="result-actions">
-            ${appid ? `<a class="btn" href="${steamLink}" target="_blank" rel="noopener">Ver na Steam</a>` : ''}
-            ${appid ? `<button class="btn secondary" data-appid="${appid}" onclick="showSteamDetails(${appid})">Detalhes</button>` : ''}
+      <article class="rec-card">
+        ${imgTag}
+        <div class="rec-body">
+          <h3 class="rec-title">${item.name}</h3>
+          <div class="rec-meta">${genres}</div>
+          <p class="rec-desc">${short}</p>
+          <div class="rec-foot">
+            <span class="rec-score">Score: <strong>${item.score}</strong></span>
+            <div class="rec-actions">${steamBtn}</div>
           </div>
         </div>
-      </div>
+      </article>
     `;
   }).join('');
-  resultado.innerHTML = cardsHtml;
-  // Ensure progress shows 100% now that recommendations are displayed
+  resultado.innerHTML = `<div id="recs">${cardsHtml}</div>`;
+  // garantir que a barra de progresso mostre 100% agora que as recomendações foram exibidas
   const prog = document.getElementById('progress');
   if (prog) {
     const bar = prog.querySelector('i');
     if (bar) bar.style.width = '100%';
     prog.setAttribute('aria-valuenow', 100);
   }
-  // show steam search container so user can further explore
-  const steamContainer = document.getElementById('steamSearchContainer');
-  if (steamContainer) steamContainer.style.display = 'block';
+  // gamificação removida — recomendações exibidas sem XP
+  try {
+    // pequeno estouro de confete para celebrar a escolha (sem XP)
+    launchConfetti(24);
+  } catch (e) { /* ignorar erros visuais */ }
 }
 
 function mostrarResultado(game) {
-  // ensure progress shows 100%
+  // garantir que a barra de progresso mostre 100%
   const prog = document.getElementById('progress');
   if (prog) {
     const bar = prog.querySelector('i');
@@ -265,43 +263,33 @@ function mostrarResultado(game) {
       ${imgSrc ? `<img id="resultImg" src="${imgSrc}" alt="${game.name}" onerror="this.style.display='none'"/>` : ""}
       <div>
         <h3>${game.name}</h3>
-        <p><em>${game.genre} • ${game.mood} • ${game.difficulty}</em></p>
-        <p>${game.description}</p>
-        <div class="badge" id="badge"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2l2.9 6.3L21 9.2l-5 3.9L17 21l-5-3.2L7 21l1-7.9-5-3.9 6.1-0.9L12 2z" fill="#052021"/></svg> Conquistou <span class="xp-counter" id="xpCounter">+0 XP</span></div>
+        <p><em>${game.genre || ''} ${game.mood ? '• ' + game.mood : ''} ${game.difficulty ? '• ' + game.difficulty : ''}</em></p>
+        <p>${game.description || ''}</p>
       </div>
     </div>
   `;
-
-  // animate XP counter
-  const xpEl = document.getElementById('xpCounter');
-  const resultCard = document.getElementById('resultCard');
-  if (xpEl) {
-    let xp = 0;
-    const target = 50; // award 50 XP for completing quiz
-    const step = Math.max(1, Math.floor(target / 25));
-    const iv = setInterval(() => {
-      xp += step;
-      if (xp >= target) { xp = target; clearInterval(iv); }
-      xpEl.textContent = `+${xp} XP`;
-    }, 20);
-  }
-
-  // small confetti burst
-  launchConfetti(18);
+  // resultado simples — sem gamificação
 }
 
-function launchConfetti(amount = 12){
-  const colors = ['#FFD166','#06B6D4','#06D6A0','#FF6B6B','#8ECAE6'];
+
+// confete leve 
+function launchConfetti(amount = 150){
+  const colors = ['#FFD166','#06B6D4','#06D6A0','#FF6B6B','#8ECAE6','#39FF14'];
   for (let i=0;i<amount;i++){
     const el = document.createElement('div');
-    el.className = 'confetti-piece confetti-fall';
-    el.style.left = Math.random()*100 + 'vw';
+    el.className = 'confetti-piece confetti-pop';
+    el.style.left = (20 + Math.random()*60) + 'vw';
+    el.style.top = (10 + Math.random()*10) + 'vh';
     el.style.background = colors[Math.floor(Math.random()*colors.length)];
-    el.style.width = (8+Math.random()*10) + 'px';
-    el.style.height = (6+Math.random()*10) + 'px';
+    el.style.width = (6 + Math.random()*10) + 'px';
+    el.style.height = (6 + Math.random()*10) + 'px';
+    el.style.borderRadius = (Math.random()>0.5? '2px' : '50%');
     el.style.transform = `rotate(${Math.random()*360}deg)`;
+    el.style.opacity = 0.95;
+    el.style.zIndex = 9999;
     document.body.appendChild(el);
-    // remove after animation
-    setTimeout(()=>{ el.remove(); }, 2000 + Math.random()*800);
+    // remoção escalonada
+    setTimeout(()=>{ el.remove(); }, 1200 + Math.random()*1400);
   }
 }
+

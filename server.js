@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from "express";
 import cors from "cors";
 import fs from "fs";
@@ -5,14 +6,14 @@ import path from "path";
 import { Client } from "pg";
 import fetch from 'node-fetch';
 
+// --- 1. Configuração do app ---
 const app = express();
 app.use(cors());
 app.use(express.json());
-
-// Servir arquivos estáticos (index.html, style.css, script.js, imagens, etc.)
+// serve static files (index.html, script.js, style.css...)
 app.use(express.static(process.cwd()));
 
-// Perguntas dinâmicas — texto reformulado para clareza e leitura rápida
+// Perguntas dinâmicas — texto em português para exibição no quiz
 const questions = [
   {
     id: "q1",
@@ -76,6 +77,7 @@ const questions = [
   }
 ];
 
+// --- 2. Armazenamento de dados (memória / cache) ---
 let db = { games: [] };
 
 // Simple in-memory cache for Steam API data
@@ -84,17 +86,30 @@ const steamCache = {
   appDetails: new Map() // appid -> { ts, data }
 };
 
-const STEAM_APPLIST_TTL = 24 * 60 * 60 * 1000; // 24 hours
-const STEAM_DETAILS_TTL = 60 * 60 * 1000; // 1 hour
+// quando a Steam retornar erro repetidamente, marcamos uma janela em que
+// evitamos re-tentar (reduz ruído nos logs e melhora latência)
+let steamUnavailableUntil = 0;
+
+const STEAM_APPLIST_TTL = 24 * 60 * 60 * 1000; // 24h
+const STEAM_DETAILS_TTL = 60 * 60 * 1000; // 1h
 
 async function fetchSteamAppList(force = false){
   const now = Date.now();
+  if(now < steamUnavailableUntil && !force) throw new Error('steam temporarily unavailable');
   if(!force && steamCache.appList.data && (now - steamCache.appList.ts) < STEAM_APPLIST_TTL){
     return steamCache.appList.data;
   }
   const url = 'https://api.steampowered.com/ISteamApps/GetAppList/v0002/?format=json';
-  const res = await fetch(url, { timeout: 20000 });
-  if(!res.ok) throw new Error(`Steam applist fetch failed: ${res.status}`);
+  // wrapper com timeout para evitar bloqueios longos
+  const res = await Promise.race([
+    fetch(url, { timeout: 20000 }),
+    new Promise((_, rej) => setTimeout(() => rej(new Error('steam applist timeout')), 20000))
+  ]);
+  if(!res.ok) {
+    // se a Steam responder com erro, evitamos re-tentar por 60s
+    steamUnavailableUntil = Date.now() + 60*1000;
+    throw new Error(`Steam applist fetch failed: ${res.status}`);
+  }
   const json = await res.json();
   // store only the array of apps to reduce wrapper objects
   const apps = (json && json.applist && json.applist.apps) ? json.applist.apps : [];
@@ -110,8 +125,15 @@ async function fetchSteamAppDetails(appid, force = false){
     if((now - v.ts) < STEAM_DETAILS_TTL) return v.data;
   }
   const url = `https://store.steampowered.com/api/appdetails?appids=${encodeURIComponent(key)}`;
-  const res = await fetch(url, { timeout: 15000 });
-  if(!res.ok) throw new Error(`Steam appdetails fetch failed: ${res.status}`);
+  const res = await Promise.race([
+    fetch(url, { timeout: 15000 }),
+    new Promise((_, rej) => setTimeout(() => rej(new Error('steam appdetails timeout')), 15000))
+  ]);
+  if(!res.ok) {
+    // marca indisponibilidade curta
+    steamUnavailableUntil = Date.now() + 30*1000;
+    throw new Error(`Steam appdetails fetch failed: ${res.status}`);
+  }
   const json = await res.json();
   // API returns object keyed by appid
   const data = json && json[key] ? json[key] : { success: false };
@@ -119,7 +141,7 @@ async function fetchSteamAppDetails(appid, force = false){
   return data;
 }
 
-// Database helpers for steam enrichment persistence
+// --- 3. DB helper (Postgres) ---
 async function withPgClient(fn){
   if (!process.env.DB_HOST) return null;
   const client = new Client({
@@ -133,7 +155,7 @@ async function withPgClient(fn){
     await client.connect();
     return await fn(client);
   }catch(err){
-    console.warn('withPgClient error:', err);
+    console.warn('withPgClient error:', err && err.message ? err.message : err);
     return null;
   }finally{
     try{ await client.end(); }catch(e){}
@@ -160,222 +182,162 @@ async function saveSteamEnrichmentToDb(gameId, appid, data){
   });
 }
 
-// Heuristic: find best matching appid from the Steam applist by name
+// --- 4. Helpers: Steam match by name ---
 async function findSteamAppIdByName(name){
+  // procura pelo jogo usando o endpoint de busca do Steam Store
+  // retorna objeto { id, image, variant } quando possível (image = tiny_image)
   if(!name) return null;
-  const apps = await fetchSteamAppList();
-  // normalize: remove edition suffixes, parentheses, punctuation, extra spaces
-  const normalize = s => String(s).toLowerCase()
-    .replace(/\(.*?\)/g, '')
-    .replace(/\b(goty|deluxe|remaster|remake|edition|complete|definitive|ultimate)\b/gi, '')
-    .replace(/[^a-z0-9 ]+/g,' ')
-    .replace(/\s+/g,' ').trim();
-  const q = normalize(name);
-  // exact include match preferred
-  for(const a of apps){
-    if(!a || !a.name) continue;
-    const n = normalize(a.name);
-    if(n === q) return a.appid;
-  }
-  // contains
-  for(const a of apps){
-    if(!a || !a.name) continue;
-    const n = normalize(a.name);
-    if(n.includes(q) || q.includes(n)) return a.appid;
-  }
-  // fuzzy: check tokens
-  const tokens = q.split(/\s+/).filter(Boolean);
-  if(tokens.length){
-    for(const a of apps){
-      if(!a || !a.name) continue;
-      const n = normalize(a.name);
-      let matches = 0;
-      for(const t of tokens) if(n.includes(t)) matches++;
-      if(matches >= Math.min(2, tokens.length)) return a.appid;
+  const variants = [];
+  const normalized = (s) => (s || '').trim();
+  variants.push(normalized(name));
+  // remover conteúdo entre parênteses, ex: "Portal (Classic)" -> "Portal"
+  variants.push(normalized(name.replace(/\(.*\)/,'').trim()));
+  // se existir ':', pegar antes (ex: "Game: Subtitle" -> "Game")
+  if (name.indexOf(':') !== -1) variants.push(normalized(name.split(':')[0]));
+  // pegar as primeiras 3-4 palavras como fallback curto
+  const words = name.split(/\s+/).filter(Boolean);
+  if (words.length) variants.push(normalized(words.slice(0,4).join(' ')));
+  // variação sem caracteres especiais
+  variants.push(normalized(name.replace(/[^a-zA-Z0-9\s]/g,'')));
+
+  // dedupe variants while preserving order
+  const seen = new Set();
+  const tries = variants.map(v=>v).filter(v=>{ if(!v) return false; if(seen.has(v.toLowerCase())) return false; seen.add(v.toLowerCase()); return true; });
+
+  for(const termRaw of tries){
+    try{
+      const term = encodeURIComponent(termRaw);
+      const url = `https://store.steampowered.com/api/storesearch/?cc=us&l=pt&term=${term}`;
+      const res = await Promise.race([
+        fetch(url, { timeout: 8000 }),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('storesearch timeout')), 8000))
+      ]);
+      if(!res.ok) continue;
+      const json = await res.json();
+      if(json && Array.isArray(json.items) && json.items.length>0){
+        const it = json.items[0];
+        return { id: it.id, image: it.tiny_image || null, variant: termRaw };
+      }
+    }catch(e){
+      // ignore this variant and try next
+      continue;
     }
   }
   return null;
 }
-
+// --- 5. Load DB (Postgres or fallback file) ---
 async function loadDb() {
-  // If DB_HOST is defined, try Postgres first
+  // If DB_HOST is defined, try Postgres first. Retry a few times while DB is coming up.
   if (process.env.DB_HOST) {
-    const client = new Client({
+    const clientConfig = {
       host: process.env.DB_HOST,
       port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 5432,
       database: process.env.POSTGRES_DB || process.env.DB_NAME || 'meu_banco_docker',
       user: process.env.POSTGRES_USER || 'postgres',
       password: process.env.POSTGRES_PASSWORD || 'postgres'
-    });
-    try {
-      await client.connect();
-      const res = await client.query('SELECT id, name, genre, difficulty, mood, description, image, keywords FROM games ORDER BY id');
-      db = { games: res.rows.map(r => ({
-        id: r.id,
-        name: r.name,
-        genre: r.genre,
-        difficulty: r.difficulty,
-        mood: r.mood,
-        description: r.description,
-        image: r.image,
-        keywords: r.keywords
-      })) };
-    } catch (err) {
-      console.error('Erro ao carregar dados do Postgres:', err);
-    } finally {
-      try { await client.end(); } catch (e) {}
+    };
+
+    const maxRetries = 12; // try for ~60 seconds (12 * 5s)
+    const delayMs = 5000;
+    let lastErr = null;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      const client = new Client(clientConfig);
+      try {
+        await client.connect();
+        const res = await client.query('SELECT id, name, genre, difficulty, mood, description, image, keywords FROM games ORDER BY id');
+        db = { games: res.rows.map(r => ({
+          id: r.id,
+          name: r.name,
+          genre: r.genre,
+          difficulty: r.difficulty,
+          mood: r.mood,
+          description: r.description,
+          image: r.image,
+          keywords: r.keywords
+        })) };
+        try { await client.end(); } catch (e) {}
+        console.log('Loaded games from Postgres, count=', db.games.length);
+        return;
+      } catch (err) {
+        lastErr = err;
+        console.warn(`loadDb attempt ${attempt} failed:`, err && err.message ? err.message : err);
+        try { await client.end(); } catch (e) {}
+        if (attempt < maxRetries) await new Promise(r => setTimeout(r, delayMs));
+      }
     }
+    console.error('Erro ao carregar dados do Postgres (excedeu tentativas):', lastErr);
     return;
   }
 
   // Fallback: read local file if exists
   const dbPath = path.join(process.cwd(), "db.json");
   if (fs.existsSync(dbPath)) {
-    try {
-      db = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
-    } catch (err) {
-      console.error('Erro ao ler db.json:', err);
-    }
+    try { db = JSON.parse(fs.readFileSync(dbPath, "utf-8")); }
+    catch (err) { console.error('Erro ao ler db.json:', err && err.message ? err.message : err); }
   } else {
-    console.warn('db.json não encontrado e nenhuma configuração de DB presente; endpoints /games podem retornar vazio.');
+    console.warn('Nenhum DB configurado e db.json não encontrado; /games ficará vazio.');
   }
 }
 
 // Start loading DB at module load; servers/tests will use whatever is loaded.
 loadDb().catch(err => console.error('Erro em loadDb:', err));
 
-// Endpoint para retornar todos os jojos 
+// Endpoint para retornar todos os jogos
+// --- 6. API: games ---
 app.get("/games", async (req, res) => {
-  // If no data loaded yet and Postgres is configured, try loading on demand
-  if ((!db.games || db.games.length === 0) && process.env.DB_HOST) {
-    try {
-      await loadDb();
-    } catch (err) {
-      console.error('Erro ao recarregar DB on-demand:', err);
-    }
-  }
+  if ((!db.games || db.games.length === 0) && process.env.DB_HOST) await loadDb();
   res.json(db.games);
 });
 
-// Endpoint para retornar as perguntas 
+// Endpoint para retornar as perguntas (quiz)
 app.get("/questions", (req, res) => {
   res.json(questions);
 });
 
-// Endpoint principal de recomendação
+// Endpoint principal de recomendação (um jogo)
+// --- 7. API: recomendar (single) ---
 app.post("/recomendar", (req, res) => {
-  // Espera body.selectedOptions = ["q1_opt2", "q2_opt1", ...]
+  if (!db.games || db.games.length === 0) return res.status(503).json({ error: 'No games available' });
   const selected = req.body.selectedOptions || [];
-  console.log('/recomendar called with', selected);
-
-  // Monta filtros a partir das opções selecionadas
+  // build filters list
   const selectedFilters = [];
-  for (const optId of selected) {
-    for (const q of questions) {
-      const opt = q.options.find(o => o.id === optId);
-      if (opt) selectedFilters.push(opt.filters || {});
-    }
+  for (const id of selected) for (const q of questions) {
+    const opt = q.options.find(o => o.id === id);
+    if (opt) selectedFilters.push(opt.filters || {});
   }
-
-  // Pontuação por jogo: cada match soma pontos com pesos por tipo
   const weights = { genre: 3, difficulty: 2, mood: 2, keywords: 1 };
-  const scores = {};
-  for (const g of db.games) scores[g.id] = 0;
-
-  for (const filters of selectedFilters) {
-    for (const g of db.games) {
-      // genre
-      if (filters.genre && filters.genre.length) {
-        for (const val of filters.genre) {
-          if (String(g.genre).toLowerCase().includes(String(val).toLowerCase())) scores[g.id] += weights.genre;
-        }
-      }
-      // difficulty
-      if (filters.difficulty && filters.difficulty.length) {
-        for (const val of filters.difficulty) {
-          if (String(g.difficulty).toLowerCase().includes(String(val).toLowerCase())) scores[g.id] += weights.difficulty;
-        }
-      }
-      // mood
-      if (filters.mood && filters.mood.length) {
-        for (const val of filters.mood) {
-          if (String(g.mood).toLowerCase().includes(String(val).toLowerCase())) scores[g.id] += weights.mood;
-        }
-      }
-      // keywords
-      if (filters.keywords && filters.keywords.length) {
-        const gk = (g.keywords || []).map(k => String(k).toLowerCase());
-        for (const val of filters.keywords) {
-          if (gk.some(k => k.includes(String(val).toLowerCase()))) scores[g.id] += weights.keywords;
-        }
-      }
-    }
-  }
-
-  // Seleciona o(s) melhor(es)
+  const scores = computeScores(selectedFilters, db.games, weights);
+  // pick best
   const maxScore = Math.max(...Object.values(scores));
-  let recommendation;
-  if (!isFinite(maxScore) || maxScore === 0) {
-    recommendation = db.games[Math.floor(Math.random() * db.games.length)];
-  } else {
+  let recommendation = db.games[Math.floor(Math.random() * db.games.length)];
+  if (isFinite(maxScore) && maxScore > 0) {
     const bestIds = Object.entries(scores).filter(([_, v]) => v === maxScore).map(([k]) => Number(k));
-    const chosenId = bestIds[Math.floor(Math.random() * bestIds.length)];
-    recommendation = db.games.find(g => g.id === chosenId);
+    const chosen = bestIds[Math.floor(Math.random() * bestIds.length)];
+    recommendation = db.games.find(g => g.id === chosen);
   }
-
   res.json({ recomendacao: recommendation, scores });
 });
 
-// New endpoint: top-N recommendations enriched with Steam data
+// Novo endpoint: top-N recomendações enriquecidas com dados da Steam
+// --- 8. API: recomendar/top (top N + enriquecimento Steam) ---
 app.post('/recomendar/top', async (req, res) => {
+  if (!db.games || db.games.length === 0) {
+    console.warn('/recomendar/top called but no games loaded');
+    return res.status(503).json({ error: 'No games available' });
+  }
   const selected = req.body.selectedOptions || [];
   const topN = Math.min(10, Math.max(1, Number(req.body.n) || 5));
   console.log('/recomendar/top called with', selected, 'n=', topN);
-
-  // build selectedFilters same as existing logic
+  // build selectedFilters
   const selectedFilters = [];
-  for (const optId of selected) {
-    for (const q of questions) {
-      const opt = q.options.find(o => o.id === optId);
-      if (opt) selectedFilters.push(opt.filters || {});
-    }
+  for (const id of selected) for (const q of questions) {
+    const opt = q.options.find(o => o.id === id);
+    if (opt) selectedFilters.push(opt.filters || {});
   }
-
   const weights = { genre: 3, difficulty: 2, mood: 2, keywords: 1 };
-  const scores = {};
-  for (const g of db.games) scores[g.id] = 0;
+  const scores = computeScores(selectedFilters, db.games, weights);
 
-  for (const filters of selectedFilters) {
-    for (const g of db.games) {
-      // genre
-      if (filters.genre && filters.genre.length) {
-        for (const val of filters.genre) {
-          if (String(g.genre).toLowerCase().includes(String(val).toLowerCase())) scores[g.id] += weights.genre;
-        }
-      }
-      // difficulty
-      if (filters.difficulty && filters.difficulty.length) {
-        for (const val of filters.difficulty) {
-          if (String(g.difficulty).toLowerCase().includes(String(val).toLowerCase())) scores[g.id] += weights.difficulty;
-        }
-      }
-      // mood
-      if (filters.mood && filters.mood.length) {
-        for (const val of filters.mood) {
-          if (String(g.mood).toLowerCase().includes(String(val).toLowerCase())) scores[g.id] += weights.mood;
-        }
-      }
-      // keywords
-      if (filters.keywords && filters.keywords.length) {
-        const gk = (g.keywords || []).map(k => String(k).toLowerCase());
-        for (const val of filters.keywords) {
-          if (gk.some(k => k.includes(String(val).toLowerCase()))) scores[g.id] += weights.keywords;
-        }
-      }
-    }
-  }
-
-  // prepare sorted list of games by score desc
+  // prepare sorted list
   const scored = db.games.map(g => ({ game: g, score: scores[g.id] || 0 }));
   scored.sort((a,b) => b.score - a.score);
 
@@ -390,50 +352,116 @@ app.post('/recomendar/top', async (req, res) => {
   }
 
   // Enrich with Steam details
-  const results = await Promise.all(candidates.map(async (entry) => {
-    const g = entry.game;
-    let steam = null;
-    try{
-      // First check DB cache for enrichment
-      const dbEnr = await getSteamEnrichmentFromDb(g.id);
-      const now = Date.now();
-      if(dbEnr && dbEnr.fetched_at){
-        const fetchedTs = new Date(dbEnr.fetched_at).getTime();
-        if((now - fetchedTs) < STEAM_DETAILS_TTL){
-          // use cached DB value
-          steam = { appid: dbEnr.appid, details: dbEnr.data };
-        }
+  // Use a small concurrency limiter to avoid overwhelming Steam or being slowed by one slow request
+  async function mapWithConcurrency(list, limit, fn) {
+    const results = [];
+    let i = 0;
+    const workers = new Array(Math.min(limit, list.length)).fill(0).map(async () => {
+      while (i < list.length) {
+        const idx = i++;
+        try { results[idx] = await fn(list[idx], idx); }
+        catch (err) { results[idx] = { error: String(err) }; }
       }
-      if(!steam){
-        const aid = await findSteamAppIdByName(g.name);
-        if(aid){
-          const details = await fetchSteamAppDetails(aid);
-          steam = { appid: aid, details };
-          // persist to DB (best-effort)
-          try{ await saveSteamEnrichmentToDb(g.id, aid, details); }catch(e){ /* ignore */ }
+    });
+    await Promise.all(workers);
+    return results;
+  }
+
+  const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
+
+  const results = await mapWithConcurrency(candidates, 3, async (entry) => {
+    const g = entry.game;
+    let usedSteam = false;
+    let imageUrl = null;
+    let steamLink = null;
+    let shortDescription = g.description || '';
+
+    try{
+      // find appid (with timeout) - may also return tiny_image
+      const storeInfo = await withTimeout(findSteamAppIdByName(g.name), 5000);
+      const steamId = storeInfo && storeInfo.id ? storeInfo.id : null;
+      if (steamId) {
+        // mark that we contacted Steam (storesearch at least)
+        usedSteam = true;
+        // fetch details (with timeout)
+        let details = null;
+        try{
+          details = await withTimeout(fetchSteamAppDetails(steamId), 7000);
+        }catch(e){
+          // ok — we still may have tiny_image from storesearch
+          details = null;
         }
+        if (details && details.success && details.data) {
+          const d = details.data;
+          imageUrl = d.header_image || d.website_background || imageUrl || null;
+          if (!imageUrl && Array.isArray(d.screenshots) && d.screenshots.length) imageUrl = d.screenshots[0].path_full || imageUrl;
+          shortDescription = d.short_description || d.about_the_game || shortDescription;
+        }
+        // if still no image, try tiny_image from storesearch
+        if(!imageUrl && storeInfo.image) imageUrl = storeInfo.image;
+        steamLink = `https://store.steampowered.com/app/${steamId}/`;
+        // save best-effort (store both details and storesearch image)
+        try{ await saveSteamEnrichmentToDb(g.id, steamId, { details, storeImage: storeInfo.image || null }); }catch(e){ /* ignore */ }
       }
     }catch(e){
-      console.warn('steam enrich failed for', g.name, e);
+      console.warn('steam enrich failed for', g.name, e && e.message ? e.message : e);
     }
-    return { game: g, score: entry.score, steam };
-  }));
+
+    if(!imageUrl && g.image) imageUrl = g.image.startsWith('/') ? g.image : '/' + g.image;
+
+    // return compact payload for faster client rendering
+    return {
+      id: g.id,
+      name: g.name,
+      genres: g.genre,
+      shortDescription,
+      image: imageUrl,
+      score: entry.score,
+      steamLink,
+      usedSteam
+    };
+  });
 
   return res.json({ recomendacoes: results, scores });
 });
 
-// Rota raiz explícita (garante que index.html seja enviada quando acessar '/').
+// --- Helper: calcular pontuações a partir dos filtros (lógica centralizada) ---
+function computeScores(selectedFilters, games, weights){
+  const scores = {};
+  for (const g of games) scores[g.id] = 0;
+  for (const filters of selectedFilters) {
+    for (const g of games) {
+      // genre
+      if (filters.genre && filters.genre.length) for (const val of filters.genre)
+        if (String(g.genre).toLowerCase().includes(String(val).toLowerCase())) scores[g.id] += weights.genre;
+      // difficulty
+      if (filters.difficulty && filters.difficulty.length) for (const val of filters.difficulty)
+        if (String(g.difficulty).toLowerCase().includes(String(val).toLowerCase())) scores[g.id] += weights.difficulty;
+      // mood
+      if (filters.mood && filters.mood.length) for (const val of filters.mood)
+        if (String(g.mood).toLowerCase().includes(String(val).toLowerCase())) scores[g.id] += weights.mood;
+      // keywords
+      if (filters.keywords && filters.keywords.length){
+        const gk = (g.keywords || []).map(k => String(k).toLowerCase());
+        for (const val of filters.keywords) if (gk.some(k => k.includes(String(val).toLowerCase()))) scores[g.id] += weights.keywords;
+      }
+    }
+  }
+  return scores;
+}
+
+// Rota raiz explícita (garante que `index.html` seja enviada ao acessar '/').
 app.get("/", (req, res) => {
   res.sendFile(path.join(process.cwd(), "index.html"));
 });
 
-// Health check for quick diagnostics
+// Endpoint de health check para diagnóstico rápido
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-// Steam API helpers
-// Returns basic metadata about the cached applist (count) or the list itself if ?full=1
+// Helpers para a Steam API
+// Retorna metadados básicos sobre o applist em cache (contagem) ou a lista completa se ?full=1
 app.get('/steam/applist', async (req, res) => {
   try{
     const full = req.query.full === '1' || req.query.full === 'true';
@@ -447,7 +475,7 @@ app.get('/steam/applist', async (req, res) => {
   }
 });
 
-// Search in the Steam applist by name (requires applist cached or will fetch it)
+// Busca no applist da Steam por nome (usa o applist em cache ou fará fetch)
 app.get('/steam/search', async (req, res) => {
   const q = (req.query.q || '').trim();
   const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 12));
@@ -470,7 +498,7 @@ app.get('/steam/search', async (req, res) => {
   }
 });
 
-// Proxy to Steam Store details for a given appid
+// Proxy para os detalhes do Steam Store para um appid específico
 app.get('/steam/app/:appid', async (req, res) => {
   const appid = req.params.appid;
   if(!appid) return res.status(400).json({ error: 'missing appid' });
@@ -488,6 +516,16 @@ const PORT = process.env.PORT || 3000;
 // Export app for testing. When running tests (NODE_ENV === 'test'), don't start the server.
 export default app;
 
-if (process.env.NODE_ENV !== 'test') {
+// Start server after attempting to load DB so routes relying on db have data when possible.
+async function startServer() {
+  try {
+    await loadDb();
+  } catch (err) {
+    console.error('Erro during initial loadDb:', err);
+  }
   app.listen(PORT, () => console.log(`✅ Servidor rodando em http://localhost:${PORT}`));
+}
+
+if (process.env.NODE_ENV !== 'test') {
+  startServer();
 }
