@@ -6,11 +6,18 @@ import path from "path";
 import { Client } from "pg";
 import fetch from 'node-fetch';
 
-// --- 1. Configuração do app ---
+/*
+  NextGame - servidor simples
+  - Carrega catálogo de jogos (Postgres ou db.json)
+  - Fornece rotas: /games, /questions, /recomendar, /recomendar/top
+  - Tenta enriquecer resultados com imagens/descrições da Steam
+  Objetivo: código legível e direto para quem está começando.
+*/
+
 const app = express();
 app.use(cors());
 app.use(express.json());
-// serve static files (index.html, script.js, style.css...)
+// serviço de arquivos estáticos (index.html, style.css, script.js)
 app.use(express.static(process.cwd()));
 
 // Perguntas dinâmicas — texto em português para exibição no quiz
@@ -80,14 +87,13 @@ const questions = [
 // --- 2. Armazenamento de dados (memória / cache) ---
 let db = { games: [] };
 
-// Simple in-memory cache for Steam API data
+// Cache simples em memória para dados da Steam
 const steamCache = {
   appList: { ts: 0, data: null }, // full app list (very large) - cached for 24h
   appDetails: new Map() // appid -> { ts, data }
 };
 
-// quando a Steam retornar erro repetidamente, marcamos uma janela em que
-// evitamos re-tentar (reduz ruído nos logs e melhora latência)
+// quando a Steam falhar repetidamente, evitaremos re-tentar por um curto período
 let steamUnavailableUntil = 0;
 
 const STEAM_APPLIST_TTL = 24 * 60 * 60 * 1000; // 24h
@@ -111,7 +117,7 @@ async function fetchSteamAppList(force = false){
     throw new Error(`Steam applist fetch failed: ${res.status}`);
   }
   const json = await res.json();
-  // store only the array of apps to reduce wrapper objects
+  // manter apenas o array de apps para simplificar o objeto em memória
   const apps = (json && json.applist && json.applist.apps) ? json.applist.apps : [];
   steamCache.appList = { ts: now, data: apps };
   return apps;
@@ -135,7 +141,7 @@ async function fetchSteamAppDetails(appid, force = false){
     throw new Error(`Steam appdetails fetch failed: ${res.status}`);
   }
   const json = await res.json();
-  // API returns object keyed by appid
+  // a API retorna um objeto indexado pelo appid
   const data = json && json[key] ? json[key] : { success: false };
   steamCache.appDetails.set(key, { ts: now, data });
   return data;
@@ -225,9 +231,9 @@ async function findSteamAppIdByName(name){
   }
   return null;
 }
-// --- 5. Load DB (Postgres or fallback file) ---
+// --- 5. Carregar dados do catálogo (Postgres ou fallback `db.json`) ---
 async function loadDb() {
-  // If DB_HOST is defined, try Postgres first. Retry a few times while DB is coming up.
+  // Se estivermos com variáveis de conexão, tentamos o Postgres primeiro.
   if (process.env.DB_HOST) {
     const clientConfig = {
       host: process.env.DB_HOST,
@@ -237,7 +243,8 @@ async function loadDb() {
       password: process.env.POSTGRES_PASSWORD || 'postgres'
     };
 
-    const maxRetries = 12; // try for ~60 seconds (12 * 5s)
+    // Tentativas simples para esperar o banco subir (ex: Docker Compose durante dev/CI)
+    const maxRetries = 12;
     const delayMs = 5000;
     let lastErr = null;
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -269,7 +276,7 @@ async function loadDb() {
     return;
   }
 
-  // Fallback: read local file if exists
+  // Se não tiver Postgres configurado, tentamos `db.json` no diretório do projeto.
   const dbPath = path.join(process.cwd(), "db.json");
   if (fs.existsSync(dbPath)) {
     try { db = JSON.parse(fs.readFileSync(dbPath, "utf-8")); }
@@ -279,7 +286,7 @@ async function loadDb() {
   }
 }
 
-// Start loading DB at module load; servers/tests will use whatever is loaded.
+// Inicia a carga do DB ao carregar o módulo; rotas podem usar os dados carregados
 loadDb().catch(err => console.error('Erro em loadDb:', err));
 
 // Endpoint para retornar todos os jogos
@@ -351,8 +358,8 @@ app.post('/recomendar/top', async (req, res) => {
     candidates = scored.slice(0, topN);
   }
 
-  // Enrich with Steam details
-  // Use a small concurrency limiter to avoid overwhelming Steam or being slowed by one slow request
+  // Enriquecer com dados da Steam
+  // Usamos um limitador simples de concorrência para não sobrecarregar a Steam
   async function mapWithConcurrency(list, limit, fn) {
     const results = [];
     let i = 0;
@@ -409,7 +416,7 @@ app.post('/recomendar/top', async (req, res) => {
 
     if(!imageUrl && g.image) imageUrl = g.image.startsWith('/') ? g.image : '/' + g.image;
 
-    // return compact payload for faster client rendering
+    // retornar payload compacto para facilitar o render no cliente
     return {
       id: g.id,
       name: g.name,
@@ -516,7 +523,7 @@ const PORT = process.env.PORT || 3000;
 // Export app for testing. When running tests (NODE_ENV === 'test'), don't start the server.
 export default app;
 
-// Start server after attempting to load DB so routes relying on db have data when possible.
+// Inicia o servidor após tentar carregar o DB para que as rotas tenham dados quando possível.
 async function startServer() {
   try {
     await loadDb();

@@ -6,7 +6,8 @@
   "scripts": {
   "start": "node server.js",
     "start:orig": "node server.js",
-    "test": "jest --runInBand"
+    "test": "jest --runInBand",
+    "ci:test": "jest --runInBand tests/container_app_integration.test.cjs tests/steam_api.test.cjs"
   },
   "dependencies": {
     "cors": "^2.8.5",

@@ -1,7 +1,7 @@
 :root{
   --bg:#000000;
   --card:#071012;
-  --accent:#39FF14; /* neon green */
+  --accent:#39FF14; 
   --accent-2:#16E04A;
   --muted: rgba(255,255,255,0.65);
   --text:#E6FFE6;
@@ -10,7 +10,6 @@
 *{box-sizing:border-box}
 body{
   font-family: Inter, Arial, sans-serif;
-  /* fundo simples: gradiente verde -> preto */
   background: linear-gradient(180deg, #072e0b 0%, #001106 45%, #000000 100%);
   color:var(--text);
   margin:0;

@@ -1,3 +1,11 @@
+/*
+  script.js - lógica do quiz (cliente)
+  - Carrega perguntas via `/questions`
+  - Renderiza cartões de missão (mission cards)
+  - Envia seleções para `/recomendar/top` e mostra resultados
+  Código intencionalmente simples e comentado em pt-BR.
+*/
+
 const quiz = document.getElementById("quiz");
 const resultado = document.getElementById("resultado");
 const modal = document.getElementById("modal");
@@ -12,8 +20,9 @@ startBtn.addEventListener("click", () => {
   initQuiz();
 });
 
-// UI de busca Steam removida — funções relacionadas deletadas a pedido do usuário
+// Observação: a busca direta na Steam foi removida por decisão de produto.
 
+// Inicia o quiz: busca as perguntas e renderiza a primeira.
 async function initQuiz() {
   quiz.innerHTML = "<p>Carregando perguntas...</p>";
   try {
@@ -21,7 +30,7 @@ async function initQuiz() {
     questions = await res.json();
     indice = 0;
     selectedOptions = [];
-    // esconder a busca da Steam ao (re)iniciar o quiz
+    // se houver um container de busca, escondemos (compatibilidade)
     const steamContainer = document.getElementById('steamSearchContainer');
     if (steamContainer) steamContainer.style.display = 'none';
     // mostrar a barra de progresso
@@ -40,9 +49,7 @@ async function initQuiz() {
       </div>
     `;
     const rb = document.getElementById('retryBtn');
-    if (rb) rb.addEventListener('click', () => {
-      initQuiz();
-    });
+    if (rb) rb.addEventListener('click', () => initQuiz());
   }
 }
 
