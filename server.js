@@ -5,6 +5,7 @@ import fs from "fs";
 import path from "path";
 import { Client } from "pg";
 import fetch from 'node-fetch';
+import client from 'prom-client';
 
 /*
   NextGame - servidor simples
@@ -19,6 +20,48 @@ app.use(cors());
 app.use(express.json());
 // serviço de arquivos estáticos (index.html, style.css, script.js)
 app.use(express.static(process.cwd()));
+
+// --- Métricas Prometheus (básico) ---
+// Registrador dedicado para este app
+const register = new client.Registry();
+client.collectDefaultMetrics({ register });
+
+const httpRequestCounter = new client.Counter({
+  name: 'http_requests_total',
+  help: 'Total de requisições HTTP',
+  labelNames: ['method', 'route', 'code']
+});
+
+const httpRequestDuration = new client.Histogram({
+  name: 'http_request_duration_seconds',
+  help: 'Duração das requisições HTTP em segundos',
+  labelNames: ['method', 'route', 'code'],
+  buckets: [0.005, 0.01, 0.05, 0.1, 0.5, 1, 2, 5]
+});
+
+register.registerMetric(httpRequestCounter);
+register.registerMetric(httpRequestDuration);
+
+// Middleware simples para contar requisições e medir duração
+app.use((req, res, next) => {
+  const end = httpRequestDuration.startTimer();
+  res.on('finish', () => {
+    const route = req.route && req.route.path ? req.route.path : req.path;
+    httpRequestCounter.inc({ method: req.method, route, code: res.statusCode });
+    end({ method: req.method, route, code: res.statusCode });
+  });
+  next();
+});
+
+// Endpoint que o Prometheus irá raspar (/metrics)
+app.get('/metrics', async (req, res) => {
+  try {
+    res.set('Content-Type', register.contentType);
+    res.send(await register.metrics());
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+});
 
 // Perguntas dinâmicas — texto em português para exibição no quiz
 const questions = [
