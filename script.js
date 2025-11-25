@@ -1,3 +1,10 @@
+/*
+  script.js - lógica do quiz (cliente)
+  - Carrega perguntas via `/questions`
+  - Renderiza cartões de missão (mission cards)
+  - Envia seleções para `/recomendar/top` e mostra resultados
+*/
+
 const quiz = document.getElementById("quiz");
 const resultado = document.getElementById("resultado");
 const modal = document.getElementById("modal");
@@ -12,8 +19,8 @@ startBtn.addEventListener("click", () => {
   initQuiz();
 });
 
-// UI de busca Steam removida — funções relacionadas deletadas a pedido do usuário
 
+// Inicia o quiz: busca as perguntas e renderiza a primeira.
 async function initQuiz() {
   quiz.innerHTML = "<p>Carregando perguntas...</p>";
   try {
@@ -21,7 +28,6 @@ async function initQuiz() {
     questions = await res.json();
     indice = 0;
     selectedOptions = [];
-    // esconder a busca da Steam ao (re)iniciar o quiz
     const steamContainer = document.getElementById('steamSearchContainer');
     if (steamContainer) steamContainer.style.display = 'none';
     // mostrar a barra de progresso
@@ -40,9 +46,7 @@ async function initQuiz() {
       </div>
     `;
     const rb = document.getElementById('retryBtn');
-    if (rb) rb.addEventListener('click', () => {
-      initQuiz();
-    });
+    if (rb) rb.addEventListener('click', () => initQuiz());
   }
 }
 
@@ -150,7 +154,6 @@ function updateProgress(){
   const prog = document.getElementById('progress');
   if (!prog || !questions.length) return;
   // calcular porcentagem: perguntas respondidas / total
-  // quando indice === questions.length, tratar como 100%
   let pct = 0;
   const total = questions.length;
   if (total > 0) {
@@ -232,47 +235,20 @@ function mostrarResultados(list){
     `;
   }).join('');
   resultado.innerHTML = `<div id="recs">${cardsHtml}</div>`;
-  // garantir que a barra de progresso mostre 100% agora que as recomendações foram exibidas
+
   const prog = document.getElementById('progress');
   if (prog) {
     const bar = prog.querySelector('i');
     if (bar) bar.style.width = '100%';
     prog.setAttribute('aria-valuenow', 100);
   }
-  // gamificação removida — recomendações exibidas sem XP
   try {
-    // pequeno estouro de confete para celebrar a escolha (sem XP)
     launchConfetti(24);
   } catch (e) { /* ignorar erros visuais */ }
 }
 
-function mostrarResultado(game) {
-  // garantir que a barra de progresso mostre 100%
-  const prog = document.getElementById('progress');
-  if (prog) {
-    const bar = prog.querySelector('i');
-    if (bar) bar.style.width = '100%';
-    prog.setAttribute('aria-valuenow', 100);
-  }
-  // garante que o caminho da imagem seja absoluto e carregue da pasta /images
-  const rawSrc = game.image ? (game.image.startsWith("/") ? game.image : "/" + game.image) : null;
-  // encodeURI trata espaços e caracteres especiais (ex: "The Witcher 3.jpeg" -> "The%20Witcher%203.jpeg")
-  const imgSrc = rawSrc ? encodeURI(rawSrc) : null;
-  resultado.innerHTML = `
-    <div class="result-card celebrate-scale" id="resultCard">
-      ${imgSrc ? `<img id="resultImg" src="${imgSrc}" alt="${game.name}" onerror="this.style.display='none'"/>` : ""}
-      <div>
-        <h3>${game.name}</h3>
-        <p><em>${game.genre || ''} ${game.mood ? '• ' + game.mood : ''} ${game.difficulty ? '• ' + game.difficulty : ''}</em></p>
-        <p>${game.description || ''}</p>
-      </div>
-    </div>
-  `;
-  // resultado simples — sem gamificação
-}
 
 
-// confete leve 
 function launchConfetti(amount = 150){
   const colors = ['#FFD166','#06B6D4','#06D6A0','#FF6B6B','#8ECAE6','#39FF14'];
   for (let i=0;i<amount;i++){
@@ -288,7 +264,6 @@ function launchConfetti(amount = 150){
     el.style.opacity = 0.95;
     el.style.zIndex = 9999;
     document.body.appendChild(el);
-    // remoção escalonada
     setTimeout(()=>{ el.remove(); }, 1200 + Math.random()*1400);
   }
 }

@@ -5,13 +5,61 @@ import fs from "fs";
 import path from "path";
 import { Client } from "pg";
 import fetch from 'node-fetch';
+import client from 'prom-client';
 
-// --- 1. Configuração do app ---
+/*
+  NextGame - servidor simples
+  - Carrega catálogo de jogos (Postgres ou db.json)
+  - Fornece rotas: /games, /questions, /recomendar, /recomendar/top
+*/
+
 const app = express();
 app.use(cors());
 app.use(express.json());
-// serve static files (index.html, script.js, style.css...)
+// serviço de arquivos estáticos (index.html, style.css, script.js)
 app.use(express.static(process.cwd()));
+
+// --- Métricas Prometheus (básico) ---
+// Registrador dedicado para este app
+const register = new client.Registry();
+client.collectDefaultMetrics({ register });
+
+const httpRequestCounter = new client.Counter({
+  name: 'http_requests_total',
+  help: 'Total de requisições HTTP',
+  labelNames: ['method', 'route', 'code']
+});
+
+const httpRequestDuration = new client.Histogram({
+  name: 'http_request_duration_seconds',
+  help: 'Duração das requisições HTTP em segundos',
+  labelNames: ['method', 'route', 'code'],
+  buckets: [0.005, 0.01, 0.05, 0.1, 0.5, 1, 2, 5]
+});
+
+register.registerMetric(httpRequestCounter);
+register.registerMetric(httpRequestDuration);
+
+// Middleware simples para contar requisições e medir duração
+app.use((req, res, next) => {
+  const end = httpRequestDuration.startTimer();
+  res.on('finish', () => {
+    const route = req.route && req.route.path ? req.route.path : req.path;
+    httpRequestCounter.inc({ method: req.method, route, code: res.statusCode });
+    end({ method: req.method, route, code: res.statusCode });
+  });
+  next();
+});
+
+// Endpoint que o Prometheus irá raspar (/metrics)
+app.get('/metrics', async (req, res) => {
+  try {
+    res.set('Content-Type', register.contentType);
+    res.send(await register.metrics());
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+});
 
 // Perguntas dinâmicas — texto em português para exibição no quiz
 const questions = [
@@ -80,14 +128,13 @@ const questions = [
 // --- 2. Armazenamento de dados (memória / cache) ---
 let db = { games: [] };
 
-// Simple in-memory cache for Steam API data
+// Cache simples em memória para dados da Steam
 const steamCache = {
   appList: { ts: 0, data: null }, // full app list (very large) - cached for 24h
   appDetails: new Map() // appid -> { ts, data }
 };
 
-// quando a Steam retornar erro repetidamente, marcamos uma janela em que
-// evitamos re-tentar (reduz ruído nos logs e melhora latência)
+// quando a Steam falhar repetidamente, evitaremos re-tentar por um curto período
 let steamUnavailableUntil = 0;
 
 const STEAM_APPLIST_TTL = 24 * 60 * 60 * 1000; // 24h
@@ -111,7 +158,7 @@ async function fetchSteamAppList(force = false){
     throw new Error(`Steam applist fetch failed: ${res.status}`);
   }
   const json = await res.json();
-  // store only the array of apps to reduce wrapper objects
+  // manter apenas o array de apps para simplificar o objeto em memória
   const apps = (json && json.applist && json.applist.apps) ? json.applist.apps : [];
   steamCache.appList = { ts: now, data: apps };
   return apps;
@@ -135,7 +182,7 @@ async function fetchSteamAppDetails(appid, force = false){
     throw new Error(`Steam appdetails fetch failed: ${res.status}`);
   }
   const json = await res.json();
-  // API returns object keyed by appid
+  // a API retorna um objeto indexado pelo appid
   const data = json && json[key] ? json[key] : { success: false };
   steamCache.appDetails.set(key, { ts: now, data });
   return data;
@@ -225,9 +272,9 @@ async function findSteamAppIdByName(name){
   }
   return null;
 }
-// --- 5. Load DB (Postgres or fallback file) ---
+// --- 5. Carregar dados do catálogo (Postgres ou fallback `db.json`) ---
 async function loadDb() {
-  // If DB_HOST is defined, try Postgres first. Retry a few times while DB is coming up.
+  // Se estivermos com variáveis de conexão, tentamos o Postgres primeiro.
   if (process.env.DB_HOST) {
     const clientConfig = {
       host: process.env.DB_HOST,
@@ -237,7 +284,8 @@ async function loadDb() {
       password: process.env.POSTGRES_PASSWORD || 'postgres'
     };
 
-    const maxRetries = 12; // try for ~60 seconds (12 * 5s)
+    // Tentativas simples para esperar o banco subir (ex: Docker Compose durante dev/CI)
+    const maxRetries = 12;
     const delayMs = 5000;
     let lastErr = null;
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -268,21 +316,8 @@ async function loadDb() {
     console.error('Erro ao carregar dados do Postgres (excedeu tentativas):', lastErr);
     return;
   }
-
-  // Fallback: read local file if exists
-  const dbPath = path.join(process.cwd(), "db.json");
-  if (fs.existsSync(dbPath)) {
-    try { db = JSON.parse(fs.readFileSync(dbPath, "utf-8")); }
-    catch (err) { console.error('Erro ao ler db.json:', err && err.message ? err.message : err); }
-  } else {
-    console.warn('Nenhum DB configurado e db.json não encontrado; /games ficará vazio.');
-  }
 }
 
-// Start loading DB at module load; servers/tests will use whatever is loaded.
-loadDb().catch(err => console.error('Erro em loadDb:', err));
-
-// Endpoint para retornar todos os jogos
 // --- 6. API: games ---
 app.get("/games", async (req, res) => {
   if ((!db.games || db.games.length === 0) && process.env.DB_HOST) await loadDb();
@@ -351,8 +386,8 @@ app.post('/recomendar/top', async (req, res) => {
     candidates = scored.slice(0, topN);
   }
 
-  // Enrich with Steam details
-  // Use a small concurrency limiter to avoid overwhelming Steam or being slowed by one slow request
+  // Enriquecer com dados da Steam
+  // Usamos um limitador simples de concorrência para não sobrecarregar a Steam
   async function mapWithConcurrency(list, limit, fn) {
     const results = [];
     let i = 0;
@@ -409,7 +444,7 @@ app.post('/recomendar/top', async (req, res) => {
 
     if(!imageUrl && g.image) imageUrl = g.image.startsWith('/') ? g.image : '/' + g.image;
 
-    // return compact payload for faster client rendering
+    // retornar payload compacto para facilitar o render no cliente
     return {
       id: g.id,
       name: g.name,
@@ -516,7 +551,7 @@ const PORT = process.env.PORT || 3000;
 // Export app for testing. When running tests (NODE_ENV === 'test'), don't start the server.
 export default app;
 
-// Start server after attempting to load DB so routes relying on db have data when possible.
+// Inicia o servidor após tentar carregar o DB para que as rotas tenham dados quando possível.
 async function startServer() {
   try {
     await loadDb();

@@ -1,0 +1,70 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 0,
+  "id": null,
+  "iteration": 1626993516088,
+  "links": [],
+  "panels": [
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+      "id": 1,
+      "options": {},
+      "targets": [
+        {"expr": "increase(http_requests_total[1m])", "legendFormat": "increase_1m", "refId": "A"}
+      ],
+      "title": "Requisições (aumento últimos 1m)",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 6, "w": 12, "x": 6, "y": 0},
+      "id": 2,
+      "options": {},
+      "targets": [
+        {"expr": "sum(rate(http_requests_total[1m]))", "legendFormat": "req/s", "refId": "A"}
+      ],
+      "title": "Requisições por segundo (1m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 6, "w": 12, "x": 0, "y": 6},
+      "id": 3,
+      "options": {},
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p95", "refId": "A"}
+      ],
+      "title": "Latência P95 (5m)",
+      "type": "timeseries"
+    }
+    ,
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+      "id": 4,
+      "options": {},
+      "targets": [
+        {"expr": "sum(http_requests_total)", "legendFormat": "total", "refId": "A"}
+      ],
+      "title": "Total de requisições",
+      "type": "stat"
+    }
+  ],
+  "schemaVersion": 30,
+  "style": "dark",
+  "tags": ["nextgame","monitoring"],
+  "templating": {"list": []},
+  "time": {"from": "now-1h", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "NextGame - Monitoring",
+  "uid": "nextgame-monitoring",
+  "version": 1
+}
