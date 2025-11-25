@@ -1,0 +1,69 @@
+- hosts: nextgame
+  gather_facts: false
+  become: true
+  vars:
+    repo_url: "https://github.com/MayconHx/NextGame.git"
+    app_dir: "/home/ec2-user/NextGame"
+  tasks:
+
+    - name: Gather facts (after bootstrapping python)
+      ansible.builtin.setup:
+      when: ansible_facts is not defined
+
+    - name: Install required packages
+      yum:
+        name:
+          - git
+          - docker
+          - curl
+        state: present
+
+    - name: Start and enable docker
+      service:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Add ec2-user to docker group
+      user:
+        name: ec2-user
+        groups: docker
+        append: yes
+
+    - name: Install docker-compose (simple curl)
+      become: true
+      shell: |
+        if [ ! -x /usr/local/bin/docker-compose ]; then
+          curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+          chmod +x /usr/local/bin/docker-compose
+        fi
+      args:
+        creates: /usr/local/bin/docker-compose
+
+    - name: Clone repository (or pull if exists)
+      git:
+        repo: "{{ repo_url }}"
+        dest: "{{ app_dir }}"
+        version: "HEAD"
+        update: yes
+        force: yes
+
+    - name: Ensure .env exists (optional)
+      copy:
+        dest: "{{ app_dir }}/.env"
+        content: |
+          PORT=3000
+          DB_HOST=db
+          DB_PORT=5432
+          POSTGRES_DB=meu_banco_docker
+          POSTGRES_USER=postgres
+          POSTGRES_PASSWORD=postgres
+        force: no
+
+    - name: Run docker compose
+      shell: |
+        cd {{ app_dir }}
+        docker compose down || true
+        docker compose up -d --build
+      args:
+        chdir: "{{ app_dir }}"

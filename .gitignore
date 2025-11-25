@@ -44,3 +44,7 @@ Thumbs.db
 ## Misc
 .cache/
 .parcel-cache/
+
+# Terraform local state / providers
+terraform/.terraform/
+.terraform/
